@@ -3,11 +3,5 @@ name = "chess_engine"
 version = "0.1.0"
 edition = "2024"
 
-[workspace]
-members = ["crates/bitboard_wizard"]
 
 [dependencies]
-
-
-[build-dependencies]
-bitboard_wizard = { version = "0.1.0", workspace = true}
