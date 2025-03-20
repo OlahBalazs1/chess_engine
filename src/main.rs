@@ -1,4 +1,3 @@
 mod magic_bitboards;
 mod utils;
-fn main() {
-}
+fn main() {}

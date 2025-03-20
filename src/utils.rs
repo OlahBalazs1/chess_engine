@@ -1,116 +1,180 @@
-pub struct Move{
+use std::ops::{Deref, Mul};
+
+pub struct Move {
     from: Position,
     to: Position,
-    promote_to: Option<PieceType>
+    promote_to: Option<PieceType>,
 }
 
-impl Move{
-    pub fn new(from: Position, to: Position) -> Self{
-        Self { from, to, promote_to: None }
+impl Move {
+    pub fn new(from: Position, to: Position) -> Self {
+        Self {
+            from,
+            to,
+            promote_to: None,
+        }
     }
-    pub fn with_promotion(self, promote_to: PieceType) -> Self{
-        Self{
+    pub fn with_promotion(self, promote_to: PieceType) -> Self {
+        Self {
             promote_to: Some(promote_to),
             ..self
         }
-
     }
 }
 
 #[derive(Clone, Copy)]
-#[repr(transparent)]
-pub struct Position{
-    index: u8
+pub struct Offset {
+    x: i8,
+    y: i8,
 }
 
-impl Position{
+impl Offset {
+    pub fn new(x: i8, y: i8) -> Self {
+        Self { x, y }
+    }
+    fn in_range(self) -> bool {
+        return self.x.abs() < 8 && self.y.abs() < 8;
+    }
+    pub fn mul(self, rhs: i8) -> Option<Self> {
+        let multiplied = Self {
+            x: self.x * rhs,
+            y: self.y * rhs,
+        };
+        if multiplied.in_range() {
+            return Some(multiplied);
+        }
+        None
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+#[repr(transparent)]
+pub struct Position {
+    index: u8,
+}
+
+impl Deref for Position {
+    type Target = u8;
+    fn deref(&self) -> &Self::Target {
+        &self.index
+    }
+}
+
+impl Position {
     #[inline]
-    pub fn new(x: u8, y: u8) -> Self{
+    pub fn new(x: u8, y: u8) -> Self {
         assert!(x < 8 && y < 8, "Value out of range");
-        Self { index: x | (y << 3) }
+        Self {
+            index: x | (y << 3),
+        }
     }
 
     #[inline]
-    pub fn from_index(index: u8) -> Self{
+    pub fn from_index(index: u8) -> Self {
         Self { index }
     }
-    
+
     #[inline]
-    pub fn as_tuple(self) -> (u8, u8){
+    pub fn as_tuple(self) -> (u8, u8) {
         (self.x(), self.y())
     }
 
     #[inline]
-    pub fn x(self) -> u8{
-        self.index & 000111
+    pub fn x(self) -> u8 {
+        self.index & 0b000111
     }
 
     #[inline]
-    pub fn y(self) -> u8{
-        self.index & 111000
+    pub fn y(self) -> u8 {
+        self.index & 0b111000
     }
 
-    pub fn index(self) -> u8{
+    #[inline]
+    pub fn index(self) -> u8 {
         self.index
     }
-    
+
+    pub fn with_offset(self, offset: Offset) -> Option<Self> {
+        let offset_self;
+        if offset.x < 0 {
+            offset_self = self.sub_x(offset.x.abs() as u8);
+            if offset_self == None {
+                return None;
+            }
+        } else {
+            offset_self = self.add_x(offset.x as u8);
+            if offset_self == None {
+                return None;
+            }
+        }
+        if offset.y < 0 {
+            offset_self.unwrap().sub_y(offset.y.abs() as u8)
+        } else {
+            offset_self.unwrap().add_y(offset.y as u8)
+        }
+    }
+
     #[inline]
-    pub fn with_x(self, x: u8) -> Self{
+    pub fn with_x(self, x: u8) -> Self {
         Position::new(x, self.y())
     }
-    
+
     #[inline]
-    pub fn with_y(self, y: u8) -> Self{
+    pub fn with_y(self, y: u8) -> Self {
         Position::new(self.x(), y)
     }
-    
+
     #[inline]
-    pub fn add_x(self, rhs: u8) -> Option<Self>{
+    pub fn add_x(self, rhs: u8) -> Option<Self> {
         self.x().checked_add(rhs).map(|x| self.with_x(x))
     }
-    
+
     #[inline]
-    pub fn add_y(self, rhs: u8) -> Option<Self>{
+    pub fn add_y(self, rhs: u8) -> Option<Self> {
         self.y().checked_add(rhs).map(|y| self.with_y(y))
     }
-    
+
     #[inline]
-    pub fn sub_x(self, rhs: u8) -> Option<Self>{
+    pub fn sub_x(self, rhs: u8) -> Option<Self> {
         self.x().checked_sub(rhs).map(|x| self.with_x(x))
     }
-    
+
     #[inline]
-    pub fn sub_y(self, rhs: u8) -> Option<Self>{
+    pub fn sub_y(self, rhs: u8) -> Option<Self> {
         self.y().checked_sub(rhs).map(|y| self.with_y(y))
     }
 }
 
-impl TryFrom<u8> for Position{
+impl TryFrom<u8> for Position {
     type Error = ();
-    fn try_from(value: u8) -> Result<Self, Self::Error>{
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
         if value > 63 {
-            return Err(())
+            return Err(());
         }
         Ok(Self { index: value })
     }
 }
 
-impl TryFrom<(u8, u8)> for Position{
+impl TryFrom<(u8, u8)> for Position {
     type Error = ();
-    fn try_from(value: (u8, u8)) -> Result<Self, Self::Error>{
-        if value.0 > 7 || value.1 > 7{
-            return Err(())
+    fn try_from(value: (u8, u8)) -> Result<Self, Self::Error> {
+        if value.0 > 7 || value.1 > 7 {
+            return Err(());
         }
         Ok(Self::new(value.0, value.1))
     }
 }
 
-
-enum PieceType{
+enum PieceType {
     Pawn,
     Rook,
     Knight,
     Bishop,
     Queen,
-    King
+    King,
+}
+
+#[inline]
+pub fn occupied(bitboard: u64, pos: Position) -> bool {
+    bitboard & (1 << pos.index) != 0
 }
