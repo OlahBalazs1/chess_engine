@@ -1,5 +1,6 @@
-use std::ops::{Deref, Mul};
+use std::ops::Deref;
 
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub struct Move {
     from: Position,
     to: Position,
@@ -29,13 +30,13 @@ pub struct Offset {
 }
 
 impl Offset {
-    pub fn new(x: i8, y: i8) -> Self {
+    pub const fn new(x: i8, y: i8) -> Self {
         Self { x, y }
     }
-    fn in_range(self) -> bool {
+    const fn in_range(self) -> bool {
         return self.x.abs() < 8 && self.y.abs() < 8;
     }
-    pub fn mul(self, rhs: i8) -> Option<Self> {
+    pub const fn mul(self, rhs: i8) -> Option<Self> {
         let multiplied = Self {
             x: self.x * rhs,
             y: self.y * rhs,
@@ -62,7 +63,7 @@ impl Deref for Position {
 
 impl Position {
     #[inline]
-    pub fn new(x: u8, y: u8) -> Self {
+    pub const fn new(x: u8, y: u8) -> Self {
         assert!(x < 8 && y < 8, "Value out of range");
         Self {
             index: x | (y << 3),
@@ -70,27 +71,27 @@ impl Position {
     }
 
     #[inline]
-    pub fn from_index(index: u8) -> Self {
+    pub const fn from_index(index: u8) -> Self {
         Self { index }
     }
 
     #[inline]
-    pub fn as_tuple(self) -> (u8, u8) {
+    pub const fn as_tuple(self) -> (u8, u8) {
         (self.x(), self.y())
     }
 
     #[inline]
-    pub fn x(self) -> u8 {
+    pub const fn x(self) -> u8 {
         self.index & 0b000111
     }
 
     #[inline]
-    pub fn y(self) -> u8 {
+    pub const fn y(self) -> u8 {
         self.index & 0b111000
     }
 
     #[inline]
-    pub fn index(self) -> u8 {
+    pub const fn index(self) -> u8 {
         self.index
     }
 
@@ -115,12 +116,12 @@ impl Position {
     }
 
     #[inline]
-    pub fn with_x(self, x: u8) -> Self {
+    pub const fn with_x(self, x: u8) -> Self {
         Position::new(x, self.y())
     }
 
     #[inline]
-    pub fn with_y(self, y: u8) -> Self {
+    pub const fn with_y(self, y: u8) -> Self {
         Position::new(self.x(), y)
     }
 
@@ -165,6 +166,7 @@ impl TryFrom<(u8, u8)> for Position {
     }
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
 enum PieceType {
     Pawn,
     Rook,
