@@ -2,9 +2,9 @@ use std::ops::Deref;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct Move {
-    from: Position,
-    to: Position,
-    promote_to: Option<PieceType>,
+    pub from: Position,
+    pub to: Position,
+    pub promote_to: Option<PieceType>,
 }
 
 impl Move {
@@ -115,6 +115,10 @@ impl Position {
         }
     }
 
+    pub const fn as_mask(&self) -> u64{
+        1 << self.index
+    }
+
     #[inline]
     pub const fn with_x(self, x: u8) -> Self {
         Position::new(x, self.y())
@@ -167,13 +171,54 @@ impl TryFrom<(u8, u8)> for Position {
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
-enum PieceType {
+pub enum PieceType {
     Pawn,
     Rook,
     Knight,
     Bishop,
     Queen,
     King,
+}
+impl PieceType{
+    pub fn with_side(self, side: Side) -> Piece{
+        Piece::new(self, side)
+        
+    }
+}
+use PieceType::*;
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum Piece{
+    White(PieceType),
+    Black(PieceType),
+}
+use Piece::*;
+
+impl Piece{
+    pub fn new(piece_type: PieceType, side: Side) -> Self{
+        if side == Side::White {
+            White(piece_type)
+        }
+        else{
+            Black(piece_type)
+        }
+    }
+
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum Side{
+    White,
+    Black,
+}
+
+impl Side{
+    pub const fn opposite(self) -> Side{
+        if self == Side::White{
+            return Side::Black
+        }
+        return Side::White
+    }
 }
 
 #[inline]
