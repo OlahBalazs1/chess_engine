@@ -21,6 +21,21 @@ impl Move {
             ..self
         }
     }
+    pub fn is_pawn_double(self) -> bool {
+        let y1 = self.from.y();
+        let y2 = self.to.y();
+        if y1 > y2 {
+            return (y1 - y2) == 2;
+        } else if y2 > y1 {
+            return (y2 - y1) == 2;
+        } else {
+            return false;
+        }
+    }
+
+    pub fn as_mask(self) -> u64 {
+        self.from.as_mask() | self.to.as_mask()
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -87,7 +102,7 @@ impl Position {
 
     #[inline]
     pub const fn y(self) -> u8 {
-        self.index & 0b111000
+        self.index >> 3
     }
 
     #[inline]
@@ -115,7 +130,7 @@ impl Position {
         }
     }
 
-    pub const fn as_mask(&self) -> u64{
+    pub const fn as_mask(&self) -> u64 {
         1 << self.index
     }
 
@@ -179,45 +194,56 @@ pub enum PieceType {
     Queen,
     King,
 }
-impl PieceType{
-    pub fn with_side(self, side: Side) -> Piece{
+impl PieceType {
+    pub fn with_side(self, side: Side) -> Piece {
         Piece::new(self, side)
-        
     }
 }
 use PieceType::*;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
-pub enum Piece{
+pub enum Piece {
     White(PieceType),
     Black(PieceType),
 }
 use Piece::*;
 
-impl Piece{
-    pub fn new(piece_type: PieceType, side: Side) -> Self{
+impl Piece {
+    pub fn new(piece_type: PieceType, side: Side) -> Self {
         if side == Side::White {
             White(piece_type)
-        }
-        else{
+        } else {
             Black(piece_type)
         }
     }
 
+    pub const fn role(self) -> PieceType {
+        match self {
+            White(role) => role,
+            Black(role) => role,
+        }
+    }
+
+    pub const fn side(self) -> Side {
+        match self {
+            White(_) => Side::White,
+            Black(_) => Side::Black,
+        }
+    }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
-pub enum Side{
+pub enum Side {
     White,
     Black,
 }
 
-impl Side{
-    pub const fn opposite(self) -> Side{
-        if self == Side::White{
-            return Side::Black
+impl Side {
+    pub const fn opposite(self) -> Side {
+        match self {
+            Side::White => Side::Black,
+            Side::Black => Side::White,
         }
-        return Side::White
     }
 }
 
