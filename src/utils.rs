@@ -1,43 +1,5 @@
 use std::ops::Deref;
 
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub struct Move {
-    pub from: Position,
-    pub to: Position,
-    pub promote_to: Option<PieceType>,
-}
-
-impl Move {
-    pub fn new(from: Position, to: Position) -> Self {
-        Self {
-            from,
-            to,
-            promote_to: None,
-        }
-    }
-    pub fn with_promotion(self, promote_to: PieceType) -> Self {
-        Self {
-            promote_to: Some(promote_to),
-            ..self
-        }
-    }
-    pub fn is_pawn_double(self) -> bool {
-        let y1 = self.from.y();
-        let y2 = self.to.y();
-        if y1 > y2 {
-            return (y1 - y2) == 2;
-        } else if y2 > y1 {
-            return (y2 - y1) == 2;
-        } else {
-            return false;
-        }
-    }
-
-    pub fn as_mask(self) -> u64 {
-        self.from.as_mask() | self.to.as_mask()
-    }
-}
-
 #[derive(Clone, Copy)]
 pub struct Offset {
     x: i8,

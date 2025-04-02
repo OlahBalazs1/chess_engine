@@ -1,9 +1,8 @@
 use std::hash::Hash;
 
-#[path = "./utils.rs"]
-mod utils;
+use crate::moving::MoveNotation;
 
-use utils::{Move, Piece, PieceType, Position, Side};
+use crate::utils::{Piece, PieceType, Position, Side};
 use PieceType::*;
 
 const ZOBRIST_HASHER: ZobristHasher = ZobristHasher::init();
@@ -39,20 +38,20 @@ impl ZobristHasher {
             },
         }
     }
-    fn update_hash(
+    fn update_hash<M: MoveNotation>(
         &self,
         mut hash: u64,
-        mov: Move,
+        mov: M,
         piece: Piece,
         move_side: Side,
         en_passant_from_to: (Option<Position>, Option<Position>),
     ) -> u64 {
-        hash ^= self.get_value(piece, mov.from);
+        hash ^= self.get_value(piece, mov.from());
 
-        if let Some(promoted_to) = mov.promote_to {
-            hash ^= self.get_value(promoted_to.with_side(move_side), mov.to)
+        if let Some(promoted_to) = mov.promote_to() {
+            hash ^= self.get_value(promoted_to.with_side(move_side), mov.to())
         } else {
-            hash ^= self.get_value(piece, mov.to);
+            hash ^= self.get_value(piece, mov.to());
         }
 
         if let Some(en_passant) = en_passant_from_to.0 {
@@ -152,9 +151,9 @@ struct BoardState {
 }
 
 impl BoardState {
-    pub fn update_zobrist(
+    pub fn update_zobrist<M: MoveNotation>(
         &mut self,
-        mov: Move,
+        mov: M,
         piece: Piece,
         move_side: Side,
         en_passant_from_to: (Option<Position>, Option<Position>),
@@ -208,39 +207,50 @@ impl BoardState {
         }
     }
 
-    pub fn make_move(&self, mov: Move, piece: Piece) -> BoardState {
+    pub fn make_move<M: MoveNotation>(&self, mov: M) -> BoardState {
         let mut after_move = self.clone();
-        let taken_piece = self.piece_at_position(mov.to);
+        let taken_piece = self.piece_at_position(mov.to());
+        let piece = mov.piece_type().with_side(self.side);
 
         if let Some(this_side) = after_move
             .side_bitboard_mut(self.side)
-            .get_containing_bitboard_mut(mov.from)
+            .get_containing_bitboard_mut(mov.from())
         {
-            *this_side ^= mov.from.as_mask();
-            if let Some(promote_to) = mov.promote_to {
+            *this_side ^= mov.from().as_mask();
+            if let Some(promote_to) = mov.promote_to() {
                 // if the move includes a promotion, update the bitboard of that type
                 // else, update the bitboard of the piece that makes the move
                 *after_move
                     .side_bitboard_mut(self.side)
-                    .get_bitboard_mut(promote_to) |= mov.to.as_mask()
+                    .get_bitboard_mut(promote_to) |= mov.to().as_mask()
             } else {
-                *this_side |= mov.to.as_mask();
+                *this_side |= mov.to().as_mask();
             }
         }
 
         // if the other side has a piece at the target position, delete it from there as the move is a take
         if let Some(other_side) = after_move
             .side_bitboard_mut(self.side.opposite())
-            .get_containing_bitboard_mut(mov.to)
+            .get_containing_bitboard_mut(mov.to())
         {
-            *other_side ^= mov.to.as_mask();
+            *other_side ^= mov.to().as_mask();
         }
 
-        if piece.role() == Pawn && mov.is_pawn_double() {
+        // google en passant
+        // set the en passant square
+        if piece.role() == Pawn && mov.is_pawn_starter() {
             // the en passant square is the average
-            after_move.en_passant_square = Some(Position::from_index((*mov.from + *mov.to) / 2))
+            after_move.en_passant_square = Some(Position::from_index((*mov.from() + *mov.to()) / 2))
         } else {
             after_move.en_passant_square = None
+        }
+        // en passant capture
+        if let Some(en_passant_square) = self.en_passant_square {
+            if mov.to() == en_passant_square {
+                *after_move
+                    .side_bitboard_mut(self.side.opposite())
+                    .get_bitboard_mut(Pawn) ^= mov.from().with_x(mov.to().x()).as_mask()
+            }
         }
 
         // castling rights
@@ -252,18 +262,18 @@ impl BoardState {
         }
 
         if piece.role() == Rook {
-            if mov.from.y() == 0 {
+            if mov.from().y() == 0 {
                 castle_rights.0 = false;
-            } else if mov.from.y() == 7 {
+            } else if mov.from().y() == 7 {
                 castle_rights.1 = false;
             }
         }
         if let Some(taken_piece) = taken_piece {
             if taken_piece.role() == Rook {
                 let castle_rights = after_move.side_castle_rights_mut(taken_piece.side());
-                if mov.to.y() == 0 {
+                if mov.to().y() == 0 {
                     castle_rights.0 = false;
-                } else if mov.to.y() == 7 {
+                } else if mov.to().y() == 7 {
                     castle_rights.1 = false;
                 }
             }
@@ -271,17 +281,15 @@ impl BoardState {
 
         // handle castling
         // castling is notated as a king move that moves 2 squares at once
-        if piece.role() == King && ((mov.from.x() as i8) - (mov.to.x() as i8)).abs() == 2 {
-            // handle the King
-            after_move.side_bitboard_mut(after_move.side).king ^= mov.as_mask();
-
-            let castle_from = if mov.to.x() < 3 {
-                mov.from.with_x(0)
+        // The king's move has already been handled
+        if piece.role() == King && ((mov.from().x() as i8) - (mov.to().x() as i8)).abs() == 2 {
+            let castle_from = if mov.to().x() < 3 {
+                mov.from().with_x(0)
             } else {
-                mov.from.with_x(7)
+                mov.from().with_x(7)
             };
 
-            let castle_to = Position::from_index((*mov.from + *mov.to) / 2);
+            let castle_to = Position::from_index((*mov.from() + *mov.to()) / 2);
 
             after_move.side_bitboard_mut(after_move.side).rook ^=
                 castle_from.as_mask() | castle_to.as_mask();
