@@ -1,6 +1,7 @@
 use crate::{
     moving::{MoveNotation, MoveType},
-    utils::{Offset, PieceType, Position},
+    piece::PieceType,
+    position::{Offset, Position},
 };
 
 #[derive(Clone, Copy)]
@@ -52,8 +53,18 @@ impl MoveNotation for BishopMove {
 }
 
 struct MagicMover {
-    rook_magics: [[SquareMagic<RookMove>; 8]; 8],
-    bishop_magics: [[SquareMagic<BishopMove>; 8]; 8],
+    rook_magics: [SquareMagic<RookMove>; 64],
+    bishop_magics: [SquareMagic<BishopMove>; 64],
+}
+
+impl MagicMover {
+    fn get_rook(&self, pos: Position, blockers: u64) -> &[RookMove] {
+        self.rook_magics[*pos as usize].get(blockers)
+    }
+
+    fn get_bishop(&self, pos: Position, blockers: u64) -> &[BishopMove] {
+        self.bishop_magics[*pos as usize].get(blockers)
+    }
 }
 
 struct SquareMagic<M: MoveNotation> {
@@ -64,16 +75,16 @@ struct SquareMagic<M: MoveNotation> {
 }
 
 impl<M: MoveNotation> SquareMagic<M> {
-    const fn rook_from_magic(pos: Position, magic: u64) -> SquareMagic<RookMove> {
-        unimplemented!()
-    }
-
-    const fn bishop_from_magic(pos: Position, magic: u64) -> SquareMagic<BishopMove> {
-        unimplemented!()
+    fn new_unchecked(pos: Position, piece: PieceType, magic: u64, premask: u64, shift: u8) -> Self {
+        match piece {
+            PieceType::Rook => {}
+            PieceType::Bishop => {}
+            _ => unimplemented!(),
+        }
     }
 
     fn get(&self, blockers: u64) -> &[M] {
-        &self.moves[self.hash(blockers) as usize][..]
+        self.moves[self.hash(blockers) as usize].as_ref()
     }
 
     fn hash(&self, mut blockers: u64) -> u64 {
@@ -134,7 +145,7 @@ fn generate_blockers(indices: Box<[u8]>) -> Box<[u64]> {
     blockers.into_boxed_slice()
 }
 
-fn rook_indices(pos: Position) -> Box<[u8]> {
+fn indices(pos: Position) -> Box<[u8]> {
     let x = pos.x();
     let y = pos.y();
     let mut indices = Vec::with_capacity(14);

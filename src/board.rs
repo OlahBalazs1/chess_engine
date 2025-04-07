@@ -1,8 +1,9 @@
 use std::hash::Hash;
 
-use crate::moving::MoveNotation;
+use crate::moving::{Castle, MoveNotation};
+use crate::piece::{Piece, PieceType, Side};
+use crate::position::Position;
 
-use crate::utils::{Piece, PieceType, Position, Side};
 use PieceType::*;
 
 const ZOBRIST_HASHER: ZobristHasher = ZobristHasher::init();
@@ -145,8 +146,8 @@ struct BoardState {
     pub white: Bitboards,
     pub side: Side,
     pub en_passant_square: Option<Position>,
-    pub white_castling: (bool, bool),
-    pub black_castling: (bool, bool),
+    pub white_castling: (bool, bool), // long, short
+    pub black_castling: (bool, bool), // long, short
     pub zobrist: u64,
 }
 
@@ -199,6 +200,12 @@ impl BoardState {
             Side::Black => &mut self.black_castling,
         }
     }
+    pub fn side_castle_rights(&mut self, side: Side) -> (bool, bool) {
+        match side {
+            Side::White => self.white_castling,
+            Side::Black => self.black_castling,
+        }
+    }
 
     pub fn side_bitboard_mut(&mut self, side: Side) -> &mut Bitboards {
         match side {
@@ -236,14 +243,6 @@ impl BoardState {
             *other_side ^= mov.to().as_mask();
         }
 
-        // google en passant
-        // set the en passant square
-        if piece.role() == Pawn && mov.is_pawn_starter() {
-            // the en passant square is the average
-            after_move.en_passant_square = Some(Position::from_index((*mov.from() + *mov.to()) / 2))
-        } else {
-            after_move.en_passant_square = None
-        }
         // en passant capture
         if let Some(en_passant_square) = self.en_passant_square {
             if mov.to() == en_passant_square {
@@ -251,6 +250,27 @@ impl BoardState {
                     .side_bitboard_mut(self.side.opposite())
                     .get_bitboard_mut(Pawn) ^= mov.from().with_x(mov.to().x()).as_mask()
             }
+        }
+
+        // google en passant
+        // set the en passant square
+        if mov.is_pawn_starter() {
+            // the en passant square is the average
+            after_move.en_passant_square = Some(mov.en_passant_square())
+        } else {
+            after_move.en_passant_square = None
+        }
+
+        // handle castling
+        // castling is notated as a king move that moves 2 squares at once
+        // The king's move has already been handled
+        match (mov.castle(), after_move.side_castle_rights(after_move.side)) {
+            (Castle::Long { from, to }, (true, _)) | (Castle::Short { from, to }, (_, true)) => {
+                after_move.side_bitboard_mut(after_move.side).rook ^= from.as_mask() | to.as_mask();
+                after_move.zobrist =
+                    ZOBRIST_HASHER.castle_update(after_move.zobrist, after_move.side, from, to)
+            }
+            _ => {}
         }
 
         // castling rights
@@ -279,29 +299,6 @@ impl BoardState {
             }
         }
 
-        // handle castling
-        // castling is notated as a king move that moves 2 squares at once
-        // The king's move has already been handled
-        if piece.role() == King && ((mov.from().x() as i8) - (mov.to().x() as i8)).abs() == 2 {
-            let castle_from = if mov.to().x() < 3 {
-                mov.from().with_x(0)
-            } else {
-                mov.from().with_x(7)
-            };
-
-            let castle_to = Position::from_index((*mov.from() + *mov.to()) / 2);
-
-            after_move.side_bitboard_mut(after_move.side).rook ^=
-                castle_from.as_mask() | castle_to.as_mask();
-
-            after_move.zobrist = ZOBRIST_HASHER.castle_update(
-                after_move.zobrist,
-                after_move.side,
-                castle_from,
-                castle_to,
-            )
-        }
-
         after_move.update_zobrist(
             mov,
             piece,
@@ -318,5 +315,90 @@ impl Hash for BoardState {
     // a hasher should only care about the zobrist hash
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.zobrist.hash(state);
+    }
+}
+
+mod move_search {
+    use crate::{
+        moving::{MoveNotation, MoveType},
+        piece::{PieceType, Side},
+        position::{Offset, Position},
+    };
+
+    fn find_pawn<M, T>(
+        side: Side,
+        pos: Position,
+        friendlies: u64,
+        enemies: u64,
+        must_block: u64,
+    ) -> T
+    where
+        M: MoveNotation,
+        T: From<Vec<M>>,
+    {
+        let mut moves: Vec<M> = Vec::with_capacity(4);
+        let yo = match side {
+            Side::White => 1,
+            Side::Black => -1,
+        };
+
+        // Takes
+        use PieceType::*;
+        [Offset::new(-1, yo), Offset::new(1, yo)]
+            .iter()
+            .filter_map(|&off| pos.with_offset(off))
+            .filter(|to| {
+                enemies & to.as_mask() != 0
+                    && friendlies & to.as_mask() == 0
+                    && (must_block == 0 || must_block & to.as_mask() < must_block)
+            })
+            .for_each(|to| match (side, to.y()) {
+                (Side::White, 7) | (Side::Black, 0) => {
+                    for promote_to in [Rook, Knight, Bishop, Queen] {
+                        moves.push(M::new(pos, to, MoveType::Promotion(promote_to)))
+                    }
+                }
+                _ => moves.push(M::new(pos, to, MoveType::Normal(PieceType::Pawn))),
+            });
+
+        let forward = [Offset::new(0, yo), Offset::new(0, 2 * yo)];
+        let valid_forward = match pos.y() {
+            1 | 6 => &forward[..],
+            _ => &forward[..1],
+        }
+        .iter()
+        .filter_map(|&off| pos.with_offset(off));
+
+        for to in valid_forward {
+            if (friendlies & enemies) & to.as_mask() != 0 {
+                break;
+            }
+            moves.push(M::new(pos, to, MoveType::Normal(PieceType::Pawn)))
+        }
+
+        moves.into()
+    }
+
+    fn find_knight<M, T>(pos: Position, friendlies: u64) -> T
+    where
+        M: MoveNotation,
+        T: From<Vec<M>>,
+    {
+        [
+            Offset::new(-2, -1),
+            Offset::new(-2, 1),
+            Offset::new(-1, 2),
+            Offset::new(1, 2),
+            Offset::new(2, 1),
+            Offset::new(2, -1),
+            Offset::new(1, -2),
+            Offset::new(-1, -2),
+        ]
+        .iter()
+        .filter_map(|&off| pos.with_offset(off))
+        .filter(|p| friendlies & p.as_mask() != 0)
+        .map(|i| M::new(pos, i, MoveType::Normal(PieceType::Knight)))
+        .collect::<Vec<M>>()
+        .into()
     }
 }
