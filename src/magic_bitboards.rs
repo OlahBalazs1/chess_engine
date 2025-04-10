@@ -129,7 +129,8 @@ where
     moves.into_boxed_slice()
 }
 
-fn generate_blockers(indices: Box<[u8]>) -> Box<[u64]> {
+fn generate_rook_blockers(pos: Position) -> Box<[u64]> {
+    let indices = rook_indices(pos);
     let mut blockers = vec![];
     for combination in 0..(1 << indices.len()) {
         let bitboard = {
@@ -145,7 +146,7 @@ fn generate_blockers(indices: Box<[u8]>) -> Box<[u64]> {
     blockers.into_boxed_slice()
 }
 
-fn indices(pos: Position) -> Box<[u8]> {
+fn rook_indices(pos: Position) -> Vec<u8> {
     let x = pos.x();
     let y = pos.y();
     let mut indices = Vec::with_capacity(14);
@@ -157,5 +158,45 @@ fn indices(pos: Position) -> Box<[u8]> {
             indices.push(*Position::new(i, y));
         }
     }
-    indices.into_boxed_slice()
+    indices
+}
+
+fn generate_bishop_blockers(pos: Position) -> Box<[u64]> {
+    let indices = bishop_indices(pos);
+    let mut blockers = vec![];
+    for combination in 0..(1 << indices.len()) {
+        let bitboard = {
+            let mut bitboard = 0u64;
+            for (index, i) in indices.iter().enumerate() {
+                bitboard |= (combination & (1 << index) >> index) << i;
+            }
+            bitboard
+        };
+        blockers.push(bitboard);
+    }
+
+    blockers.into_boxed_slice()
+}
+
+fn bishop_indices(pos: Position) -> Vec<u8>{
+    let mut indices = Vec::with_capacity(10);
+    
+    let x = pos.x();
+    let y = pos.y();
+
+    for i in 1..7{
+        let yo = (x as i8) - i;
+
+        let y1 = (y as i8) - yo;
+        let y2 = (y as i8) + yo;
+
+        if y1 > 0 && y1 < 7 && y1 != y2{
+            indices.push((y1 * 8 + i) as u8)
+        }
+        if y2 > 0 && y2 < 7{
+            indices.push((y2 * 8 + i) as u8)
+        }
+    }
+
+    indices
 }

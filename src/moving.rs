@@ -35,7 +35,9 @@ pub trait MoveNotation {
                     from: castle_from,
                     to: self.rook_square_after_castle(),
                 },
-                _ => panic!("MoveNotation::castle_from() returned a position with an x value other than 0 or 7"),
+                _ => panic!(
+                    "MoveNotation::castle_from() returned a position with an x value other than 0 or 7"
+                ),
             }
         } else {
             Castle::Not
