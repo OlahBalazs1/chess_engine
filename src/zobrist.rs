@@ -1,23 +1,51 @@
 use crate::{
     moving::MoveNotation,
-    piece::{Piece, PieceType, Side},
+    piece::{self, Piece, PieceType, Side},
     position::Position,
 };
-use std::cell::LazyCell;
 use PieceType::*;
+use rand::prelude::*;
+use std::cell::LazyCell;
 
-pub const ZOBRIST_HASHER: LazyCell<ZobristHasher> = LazyCell::new(ZobristHasher::init);
+pub const ZOBRIST_HASHER: LazyCell<ZobristHasher> =
+    LazyCell::new(|| ZobristHasher::seeded_init(b"Lorem ipsum dolor sit amet nisi."));
 
 struct ZobristHasher {
     piece_boards: [[u64; 64]; 12],
     en_passant_squares: [u64; 8],
+    black_castle_rights: [u64; 2],
+    white_castle_rights: [u64; 2],
     black: u64,
 }
 
 impl ZobristHasher {
     // I'll need a custom pseudorandom generator to generate numbers deterministically (at compile time)
-    pub const fn init() -> Self {
+    pub const fn const_init() -> Self {
         todo!()
+    }
+    pub fn seeded_init(seed: &[u8; 32]) -> Self {
+        let mut piece_boards = [[0; 64]; 12];
+        let mut rng = SmallRng::from_seed(*seed);
+        for piece in piece_boards.iter_mut() {
+            for cell in piece.iter_mut() {
+                *cell = rng.random();
+            }
+        }
+        let en_passant_squares = [0; 8];
+        for square in piece_boards.iter_mut() {
+            *square = rng.random()
+        }
+        let black_castle_rights = [rng.random(), rng.random()];
+        let white_castle_rights = [rng.random(), rng.random()];
+        let black = rng.random();
+
+        Self {
+            piece_boards,
+            en_passant_squares,
+            black_castle_rights,
+            white_castle_rights,
+            black,
+        }
     }
 
     pub fn get_value(&self, piece: Piece, pos: Position) -> u64 {

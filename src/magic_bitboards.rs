@@ -178,22 +178,22 @@ fn generate_bishop_blockers(pos: Position) -> Box<[u64]> {
     blockers.into_boxed_slice()
 }
 
-fn bishop_indices(pos: Position) -> Vec<u8>{
+fn bishop_indices(pos: Position) -> Vec<u8> {
     let mut indices = Vec::with_capacity(10);
-    
+
     let x = pos.x();
     let y = pos.y();
 
-    for i in 1..7{
+    for i in 1..7 {
         let yo = (x as i8) - i;
 
         let y1 = (y as i8) - yo;
         let y2 = (y as i8) + yo;
 
-        if y1 > 0 && y1 < 7 && y1 != y2{
+        if y1 > 0 && y1 < 7 && y1 != y2 {
             indices.push((y1 * 8 + i) as u8)
         }
-        if y2 > 0 && y2 < 7{
+        if y2 > 0 && y2 < 7 {
             indices.push((y2 * 8 + i) as u8)
         }
     }
