@@ -3,14 +3,15 @@ use crate::{
     piece::PieceType,
     position::{Offset, Position},
 };
+use std::iter;
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq)]
 pub struct RookMove {
     from: Position,
     to: Position,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq)]
 pub struct BishopMove {
     from: Position,
     to: Position,
@@ -67,31 +68,126 @@ impl MagicMover {
     }
 }
 
-struct SquareMagic<M: MoveNotation> {
-    moves: Box<[Box<[M]>]>,
+struct MagicHasher {
     premask: u64,
     magic: u64,
     shift: u8,
 }
 
-impl<M: MoveNotation> SquareMagic<M> {
-    fn new_unchecked(pos: Position, piece: PieceType, magic: u64, premask: u64, shift: u8) -> Self {
-        match piece {
-            PieceType::Rook => {}
-            PieceType::Bishop => {}
-            _ => unimplemented!(),
+impl MagicHasher {
+    const fn new(premask: u64, magic: u64, shift: u8) -> Self {
+        Self {
+            premask,
+            magic,
+            shift,
         }
+    }
+    const fn hash(&self, mut blockers: u64) -> u64 {
+        blockers &= self.premask;
+        blockers = blockers.wrapping_mul(self.magic);
+        blockers >>= self.shift;
+        blockers
+    }
+}
+
+struct SquareMagic<M: MoveNotation> {
+    moves: Box<[Box<[M]>]>,
+    hasher: MagicHasher,
+}
+
+impl<M: MoveNotation> SquareMagic<M> {
+    fn new_rook(
+        pos: Position,
+        piece: PieceType,
+        magic: u64,
+        premask: u64,
+        shift: u8,
+    ) -> SquareMagic<RookMove> {
+        let hasher = MagicHasher::new(premask, magic, shift);
+        let blocker_configs = generate_rook_blockers(pos);
+        let possible_moves: Vec<Box<[RookMove]>> = blocker_configs
+            .iter()
+            .map(|block| {
+                slide_blocker_possible_moves(
+                    *block,
+                    pos,
+                    piece,
+                    [
+                        Offset::new(1, 0),
+                        Offset::new(-1, 0),
+                        Offset::new(0, -1),
+                        Offset::new(0, 1),
+                    ],
+                )
+            })
+            .collect();
+        let mut magic_moves = vec![None; blocker_configs.len()];
+        for (blocker, possible_move) in iter::zip(blocker_configs, possible_moves) {
+            if let Some(collided) = &magic_moves[hasher.hash(blocker) as usize] {
+                assert!(*collided == possible_move, "Magic number is not magic")
+            } else {
+                magic_moves[hasher.hash(blocker) as usize] = Some(possible_move)
+            }
+        }
+
+        SquareMagic::<RookMove> {
+            moves: magic_moves
+                .iter_mut()
+                .map(|i| i.take().unwrap_or_else(|| Box::new([])))
+                .collect(),
+            hasher,
+        }
+    }
+    fn new_bishop(
+        pos: Position,
+        piece: PieceType,
+        magic: u64,
+        premask: u64,
+        shift: u8,
+    ) -> SquareMagic<BishopMove> {
+        let hasher = MagicHasher::new(premask, magic, shift);
+        let blocker_configs = generate_rook_blockers(pos);
+        let possible_moves: Vec<Box<[BishopMove]>> = blocker_configs
+            .iter()
+            .map(|block| {
+                slide_blocker_possible_moves(
+                    *block,
+                    pos,
+                    piece,
+                    [
+                        Offset::new(1, 1),
+                        Offset::new(1, -1),
+                        Offset::new(-1, 1),
+                        Offset::new(-1, -1),
+                    ],
+                )
+            })
+            .collect();
+        let mut magic_moves = vec![None; blocker_configs.len()];
+        for (blocker, possible_move) in iter::zip(blocker_configs, possible_moves) {
+            if let Some(collided) = &magic_moves[hasher.hash(blocker) as usize] {
+                assert!(*collided == possible_move, "Magic number is not magic")
+            } else {
+                magic_moves[hasher.hash(blocker) as usize] = Some(possible_move)
+            }
+        }
+
+        SquareMagic::<BishopMove> {
+            moves: magic_moves
+                .iter_mut()
+                // CORRECT BEHAVIOUR: all possible blocker configurations point to a valid move array
+                .map(|i| i.take().unwrap_or_else(|| Box::new([])))
+                .collect(),
+            hasher,
+        }
+    }
+
+    const fn hash(&self, blockers: u64) -> u64 {
+        self.hasher.hash(blockers)
     }
 
     fn get(&self, blockers: u64) -> &[M] {
         self.moves[self.hash(blockers) as usize].as_ref()
-    }
-
-    fn hash(&self, mut blockers: u64) -> u64 {
-        blockers &= self.premask;
-        blockers *= self.magic;
-        blockers >>= self.shift;
-        blockers
     }
 }
 

@@ -1,16 +1,16 @@
 use crate::{
     moving::MoveNotation,
-    piece::{self, Piece, PieceType, Side},
+    piece::{Piece, PieceType, Side},
     position::Position,
 };
-use PieceType::*;
 use rand::prelude::*;
 use std::cell::LazyCell;
+use PieceType::*;
 
-pub const ZOBRIST_HASHER: LazyCell<ZobristHasher> =
-    LazyCell::new(|| ZobristHasher::seeded_init(b"Lorem ipsum dolor sit amet nisi."));
+pub const ZOBRIST_RANDOM: LazyCell<ZobristRandom> =
+    LazyCell::new(|| ZobristRandom::seeded_init(b"Lorem ipsum dolor sit amet nisi."));
 
-struct ZobristHasher {
+struct ZobristRandom {
     piece_boards: [[u64; 64]; 12],
     en_passant_squares: [u64; 8],
     black_castle_rights: [u64; 2],
@@ -18,33 +18,20 @@ struct ZobristHasher {
     black: u64,
 }
 
-impl ZobristHasher {
-    // I'll need a custom pseudorandom generator to generate numbers deterministically (at compile time)
+impl ZobristRandom {
+    // I'll need a custom pseudorandom generator to generate numbers deterministically at compile time
     pub const fn const_init() -> Self {
         todo!()
     }
-    pub fn seeded_init(seed: &[u8; 32]) -> Self {
-        let mut piece_boards = [[0; 64]; 12];
-        let mut rng = SmallRng::from_seed(*seed);
-        for piece in piece_boards.iter_mut() {
-            for cell in piece.iter_mut() {
-                *cell = rng.random();
-            }
-        }
-        let en_passant_squares = [0; 8];
-        for square in piece_boards.iter_mut() {
-            *square = rng.random()
-        }
-        let black_castle_rights = [rng.random(), rng.random()];
-        let white_castle_rights = [rng.random(), rng.random()];
-        let black = rng.random();
 
+    pub fn seeded_init(seed: &[u8; 32]) -> Self {
+        let mut rng = SmallRng::from_seed(*seed);
         Self {
-            piece_boards,
-            en_passant_squares,
-            black_castle_rights,
-            white_castle_rights,
-            black,
+            piece_boards: rng.random(),
+            en_passant_squares: rng.random(),
+            black_castle_rights: rng.random(),
+            white_castle_rights: rng.random(),
+            black: rng.random(),
         }
     }
 
@@ -101,6 +88,16 @@ impl ZobristHasher {
         hash ^= self.get_value(Rook.with_side(side), to);
         hash
     }
+    pub fn update_long_castle_right(&self, hash: u64, side: Side) -> u64 {
+        hash ^ match side {
+            Side::White => self.white_castle_rights[0],
+            Side::Black => self.black_castle_rights[0],
+        }
+    }
+    pub fn update_short_castle_right(&self, hash: u64, side: Side) -> u64 {
+        hash ^ match side {
+            Side::White => self.white_castle_rights[1],
+            Side::Black => self.black_castle_rights[1],
+        }
+    }
 }
-
-mod pseudorandom {}

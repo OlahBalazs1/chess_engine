@@ -74,7 +74,7 @@ impl Bitboards {
 }
 
 #[derive(Clone)]
-struct BoardState {
+pub struct BoardState {
     pub black: Bitboards,
     pub white: Bitboards,
     pub side: Side,
