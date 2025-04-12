@@ -74,7 +74,7 @@ impl Bitboards {
 }
 
 #[derive(Clone)]
-struct BoardState {
+pub struct BoardState {
     pub black: Bitboards,
     pub white: Bitboards,
     pub side: Side,
@@ -253,6 +253,7 @@ impl Hash for BoardState {
 
 mod move_search {
     use crate::{
+        magic_bitboards::M,
         moving::{MoveNotation, MoveType},
         piece::{PieceType, Side},
         position::{Offset, Position},
@@ -333,5 +334,57 @@ mod move_search {
         .map(|i| M::new(pos, i, MoveType::Normal(PieceType::Knight)))
         .collect::<Vec<M>>()
         .into()
+    }
+
+    fn find_king<M, T>(
+        pos: Position,
+        friendlies: u64,
+        attacked_squares: u64,
+        castle_rights: (bool, bool),
+    ) -> T
+    where
+        M: MoveNotation,
+        T: From<Vec<M>>,
+    {
+        let mut moves: Vec<M> = Vec::with_capacity(10);
+        let must_avoid = friendlies & attacked_squares;
+
+        // normal moving
+        moves.extend(
+            [
+                Offset::new(0, 1),
+                Offset::new(0, -1),
+                Offset::new(1, 0),
+                Offset::new(-1, 0),
+                Offset::new(1, 1),
+                Offset::new(-1, -1),
+                Offset::new(-1, 1),
+                Offset::new(1, -1),
+            ]
+            .iter()
+            .filter_map(|i| pos.with_offset(*i))
+            .filter(|i| must_avoid & i.as_mask() == 0)
+            .map(|i| M::new(pos, i, MoveType::Normal(PieceType::King))),
+        );
+        let long = 0b11 << (1 + pos.y() * 8);
+        let short = 0b11 << (5 + pos.y() * 8);
+
+        if castle_rights.0 && long & must_avoid != 0 {
+            moves.push(M::new(
+                pos,
+                pos.with_x(2),
+                MoveType::Normal(PieceType::King),
+            ));
+        }
+
+        if castle_rights.1 && short & must_avoid != 0 {
+            moves.push(M::new(
+                pos,
+                pos.with_x(6),
+                MoveType::Normal(PieceType::King),
+            ));
+        }
+
+        moves.into()
     }
 }
