@@ -3,14 +3,14 @@ use crate::{
     piece::{Piece, PieceType, Side},
     position::Position,
 };
+use PieceType::*;
 use rand::prelude::*;
 use std::cell::LazyCell;
-use PieceType::*;
 
 pub const ZOBRIST_RANDOM: LazyCell<ZobristRandom> =
     LazyCell::new(|| ZobristRandom::seeded_init(b"Lorem ipsum dolor sit amet nisi."));
 
-struct ZobristRandom {
+pub struct ZobristRandom {
     piece_boards: [[u64; 64]; 12],
     en_passant_squares: [u64; 8],
     black_castle_rights: [u64; 2],
