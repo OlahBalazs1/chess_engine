@@ -93,7 +93,7 @@ impl BoardState {
         en_passant_from_to: (Option<Position>, Option<Position>),
     ) {
         self.zobrist =
-            ZOBRIST_HASHER.update_hash(self.zobrist, mov, piece, move_side, en_passant_from_to)
+            ZOBRIST_RANDOM.update_hash(self.zobrist, mov, piece, move_side, en_passant_from_to)
     }
     pub fn get_bitboard(&self, piece: Piece) -> u64 {
         match piece {
@@ -201,36 +201,44 @@ impl BoardState {
             (Castle::Long { from, to }, (true, _)) | (Castle::Short { from, to }, (_, true)) => {
                 after_move.side_bitboard_mut(after_move.side).rook ^= from.as_mask() | to.as_mask();
                 after_move.zobrist =
-                    ZOBRIST_HASHER.castle_update(after_move.zobrist, after_move.side, from, to)
+                    ZOBRIST_RANDOM.castle_update(after_move.zobrist, after_move.side, from, to)
             }
             _ => {}
         }
 
         // castling rights
+        let mut castled_hash = after_move.zobrist;
+        let side = after_move.side;
         let castle_rights = after_move.side_castle_rights_mut(after_move.side);
 
         if piece.role() == King {
             castle_rights.0 = false;
             castle_rights.1 = false;
+            castled_hash = ZOBRIST_RANDOM.update_long_castle_right(castled_hash, side);
+            castled_hash = ZOBRIST_RANDOM.update_short_castle_right(castled_hash, side);
         }
 
         if piece.role() == Rook {
             if mov.from().y() == 0 {
                 castle_rights.0 = false;
+                castled_hash = ZOBRIST_RANDOM.update_long_castle_right(castled_hash, side);
             } else if mov.from().y() == 7 {
                 castle_rights.1 = false;
+                castled_hash = ZOBRIST_RANDOM.update_short_castle_right(castled_hash, side);
             }
         }
         if let Some(taken_piece) = taken_piece {
             if taken_piece.role() == Rook {
-                let castle_rights = after_move.side_castle_rights_mut(taken_piece.side());
                 if mov.to().y() == 0 {
                     castle_rights.0 = false;
+                    castled_hash = ZOBRIST_RANDOM.update_short_castle_right(castled_hash, side);
                 } else if mov.to().y() == 7 {
+                    castled_hash = ZOBRIST_RANDOM.update_short_castle_right(castled_hash, side);
                     castle_rights.1 = false;
                 }
             }
         }
+        after_move.zobrist = castled_hash;
 
         after_move.update_zobrist(
             mov,
@@ -335,7 +343,7 @@ mod move_search {
         .collect::<Vec<M>>()
         .into()
     }
-
+  
     fn find_king<M, T>(
         pos: Position,
         friendlies: u64,
