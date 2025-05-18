@@ -123,6 +123,13 @@ impl MoveNotation for Move {
     }
 }
 mod move_search {
+    use crate::board::{Bitboards, BoardState};
+    struct SearchBoardState {
+        state: BoardState,
+        // Attacked by black
+        black_attacked: Bitboards,
+        white_attacked: Bitboards,
+    }
     use crate::{
         magic_bitboards::{BishopMove, MagicMover, RookMove, MAGIC_MOVER},
         moving::{MoveNotation, MoveType},

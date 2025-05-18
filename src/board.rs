@@ -16,6 +16,13 @@ pub struct Bitboards {
     pub queen: u64,
     pub king: u64,
 }
+struct SearchBoardState {
+    state: BoardState,
+    // Attacked by black
+    black_attacked: Bitboards,
+    // Attacked by white
+    white_attacked: Bitboards,
+}
 
 impl Bitboards {
     pub fn get_containing_bitboard_mut(&mut self, pos: Position) -> Option<&mut u64> {
@@ -256,5 +263,37 @@ impl Hash for BoardState {
     // a hasher should only care about the zobrist hash
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.zobrist.hash(state);
+    }
+}
+
+impl Default for BoardState {
+    fn default() -> Self {
+        let black = Bitboards {
+            pawn: 0xFF000000000000,
+            rook: 0x8100000000000000,
+            knight: 0x4200000000000000,
+            bishop: 0x2400000000000000,
+            queen: 0x1000000000000000,
+            king: 0x800000000000000,
+        };
+        let white = Bitboards {
+            pawn: 0xFF00,
+            rook: 0x81,
+            knight: 0x42,
+            bishop: 0x24,
+            queen: 0x10,
+            king: 0x8,
+        };
+        let mut state = BoardState {
+            black,
+            white,
+            side: Side::White,
+            black_castling: (true, true),
+            white_castling: (true, true),
+            en_passant_square: None,
+            zobrist: 0,
+        };
+        ZOBRIST_RANDOM.hash_board(&mut state);
+        state
     }
 }

@@ -1,4 +1,5 @@
 use crate::{
+    board::BoardState,
     moving::MoveNotation,
     piece::{Piece, PieceType, Side},
     position::Position,
@@ -12,7 +13,7 @@ pub const ZOBRIST_RANDOM: LazyCell<ZobristRandom> =
 
 pub struct ZobristRandom {
     piece_boards: [[u64; 64]; 12],
-    en_passant_squares: [u64; 8],
+    en_passant_squares: [u64; 64],
     black_castle_rights: [u64; 2],
     white_castle_rights: [u64; 2],
     black: u64,
@@ -33,6 +34,55 @@ impl ZobristRandom {
             white_castle_rights: rng.random(),
             black: rng.random(),
         }
+    }
+
+    pub fn hash_board(&self, state: &mut BoardState) {
+        // order of hashing bitboards
+        // wPawn, wRook, wKnight, wBishop, wQueen, wKing
+        // bPawn, bRook, bKnight, bBishop, bQueen, bKing
+        let pieces = [
+            state.white.pawn,
+            state.white.rook,
+            state.white.knight,
+            state.white.bishop,
+            state.white.queen,
+            state.white.king,
+            state.black.pawn,
+            state.black.rook,
+            state.black.knight,
+            state.black.bishop,
+            state.black.queen,
+            state.black.king,
+        ];
+        let mut hash = 0;
+        for (random, board) in std::iter::zip(self.piece_boards, pieces) {
+            for square in 0..64 {
+                if board & (1 << square) != 0 {
+                    hash ^= random[square]
+                }
+            }
+        }
+        if let Some(en_passant) = state.en_passant_square {
+            hash ^= self.en_passant_squares[*en_passant as usize]
+        }
+        if state.white_castling.0 {
+            hash ^= self.white_castle_rights[0]
+        }
+        if state.white_castling.1 {
+            hash ^= self.white_castle_rights[1]
+        }
+        if state.black_castling.0 {
+            hash ^= self.black_castle_rights[1]
+        }
+        if state.black_castling.1 {
+            hash ^= self.black_castle_rights[1]
+        }
+
+        if state.side == Side::Black {
+            hash ^= self.black
+        }
+
+        state.zobrist = hash
     }
 
     pub fn get_value(&self, piece: Piece, pos: Position) -> u64 {
