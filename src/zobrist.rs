@@ -1,6 +1,6 @@
 use crate::{
     board::BoardState,
-    moving::MoveNotation,
+    moving::Move,
     piece::{Piece, PieceType, Side},
     position::Position,
 };
@@ -105,10 +105,10 @@ impl ZobristRandom {
             },
         }
     }
-    pub fn update_hash<M: MoveNotation>(
+    pub fn update_hash(
         &self,
         mut hash: u64,
-        mov: M,
+        mov: Move,
         piece: Piece,
         move_side: Side,
         en_passant_from_to: (Option<Position>, Option<Position>),

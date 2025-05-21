@@ -1,6 +1,6 @@
 use std::hash::Hash;
 
-use crate::moving::{Castle, MoveNotation};
+use crate::moving::{Castle, Move};
 use crate::piece::{Piece, PieceType, Side};
 use crate::position::Position;
 use crate::zobrist::*;
@@ -92,9 +92,9 @@ pub struct BoardState {
 }
 
 impl BoardState {
-    pub fn update_zobrist<M: MoveNotation>(
+    pub fn update_zobrist(
         &mut self,
-        mov: M,
+        mov: Move,
         piece: Piece,
         move_side: Side,
         en_passant_from_to: (Option<Position>, Option<Position>),
@@ -154,7 +154,7 @@ impl BoardState {
         }
     }
 
-    pub fn make_move<M: MoveNotation>(&self, mov: M) -> BoardState {
+    pub fn make_move(&self, mov: Move) -> BoardState {
         let mut after_move = self.clone();
         let taken_piece = self.piece_at_position(mov.to());
         let piece = mov.piece_type().with_side(self.side);
@@ -273,16 +273,16 @@ impl Default for BoardState {
             rook: 0x8100000000000000,
             knight: 0x4200000000000000,
             bishop: 0x2400000000000000,
-            queen: 0x1000000000000000,
-            king: 0x800000000000000,
+            king: 0x1000000000000000,
+            queen: 0x800000000000000,
         };
         let white = Bitboards {
             pawn: 0xFF00,
             rook: 0x81,
             knight: 0x42,
             bishop: 0x24,
-            queen: 0x10,
-            king: 0x8,
+            king: 0x10,
+            queen: 0x8,
         };
         let mut state = BoardState {
             black,

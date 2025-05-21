@@ -1,63 +1,15 @@
 use crate::{
-    moving::{MoveNotation, MoveType},
+    moving::{Move, MoveType},
     piece::PieceType,
     position::{Offset, Position},
 };
-use std::{cell::LazyCell, iter};
+use std::{iter, sync::LazyLock};
 
-#[derive(Clone, Copy, PartialEq)]
-pub struct RookMove {
-    from: Position,
-    to: Position,
-}
-
-#[derive(Clone, Copy, PartialEq)]
-pub struct BishopMove {
-    from: Position,
-    to: Position,
-}
-
-impl MoveNotation for RookMove {
-    fn new(from: Position, to: Position, _move_type: crate::moving::MoveType) -> Self {
-        Self { from, to }
-    }
-    fn from(&self) -> Position {
-        self.from
-    }
-    fn to(&self) -> Position {
-        self.to
-    }
-    fn piece_type(&self) -> PieceType {
-        PieceType::Rook
-    }
-    fn promote_to(&self) -> Option<PieceType> {
-        None
-    }
-}
-
-impl MoveNotation for BishopMove {
-    fn new(from: Position, to: Position, _move_type: crate::moving::MoveType) -> Self {
-        Self { from, to }
-    }
-    fn from(&self) -> Position {
-        self.from
-    }
-    fn to(&self) -> Position {
-        self.to
-    }
-    fn piece_type(&self) -> PieceType {
-        PieceType::Bishop
-    }
-    fn promote_to(&self) -> Option<PieceType> {
-        None
-    }
-}
-
-pub static MAGIC_MOVER: LazyCell<MagicMover> = LazyCell::new(|| MagicMover::init([], []));
+pub static MAGIC_MOVER: LazyLock<MagicMover> = LazyLock::new(|| MagicMover::init([], []));
 
 pub struct MagicMover {
-    rook_magics: Box<[SquareMagic<RookMove>]>,
-    bishop_magics: Box<[SquareMagic<BishopMove>]>,
+    rook_magics: Box<[SquareMagic]>,
+    bishop_magics: Box<[SquareMagic]>,
 }
 
 impl MagicMover {
@@ -67,7 +19,7 @@ impl MagicMover {
                 .iter()
                 .enumerate()
                 .map(|(index, &magic)| {
-                    SquareMagic::<RookMove>::new_rook(Position::from_index(index as u8), magic)
+                    SquareMagic::new_rook(Position::from_index(index as u8), magic)
                 })
                 .collect(),
 
@@ -75,17 +27,17 @@ impl MagicMover {
                 .iter()
                 .enumerate()
                 .map(|(index, &magic)| {
-                    SquareMagic::<BishopMove>::new_bishop(Position::from_index(index as u8), magic)
+                    SquareMagic::new_bishop(Position::from_index(index as u8), magic)
                 })
                 .collect(),
         }
     }
 
-    pub fn get_rook(&self, pos: Position, blockers: u64) -> &[RookMove] {
+    pub fn get_rook(&self, pos: Position, blockers: u64) -> &[Move] {
         self.rook_magics[*pos as usize].get(blockers)
     }
 
-    pub fn get_bishop(&self, pos: Position, blockers: u64) -> &[BishopMove] {
+    pub fn get_bishop(&self, pos: Position, blockers: u64) -> &[Move] {
         self.bishop_magics[*pos as usize].get(blockers)
     }
 }
@@ -113,19 +65,15 @@ impl MagicHasher {
     }
 }
 
-struct SquareMagic<M: MoveNotation> {
-    // TODO: The moves field should hold a MovesList struct, which holds the moves plotted on a
-    // bitboard in addition to the list of them
-    //
-    // moves: Box<[MovesList]>
-    moves: Box<[Box<[M]>]>,
+struct SquareMagic {
+    moves: Box<[Box<[Move]>]>,
     hasher: MagicHasher,
 }
 
-impl<M: MoveNotation> SquareMagic<M> {
-    fn new_rook(pos: Position, hasher: MagicHasher) -> SquareMagic<RookMove> {
+impl SquareMagic {
+    fn new_rook(pos: Position, hasher: MagicHasher) -> Self {
         let blocker_configs = generate_rook_blockers(pos);
-        let possible_moves: Vec<Box<[RookMove]>> = blocker_configs
+        let possible_moves: Vec<Box<[Move]>> = blocker_configs
             .iter()
             .map(|block| {
                 slide_blocker_possible_moves(
@@ -150,7 +98,7 @@ impl<M: MoveNotation> SquareMagic<M> {
             }
         }
 
-        SquareMagic::<RookMove> {
+        SquareMagic {
             moves: magic_moves
                 .iter_mut()
                 .map(|i| i.take().unwrap_or_else(|| Box::new([])))
@@ -158,9 +106,9 @@ impl<M: MoveNotation> SquareMagic<M> {
             hasher,
         }
     }
-    fn new_bishop(pos: Position, hasher: MagicHasher) -> SquareMagic<BishopMove> {
+    fn new_bishop(pos: Position, hasher: MagicHasher) -> Self {
         let blocker_configs = generate_rook_blockers(pos);
-        let possible_moves: Vec<Box<[BishopMove]>> = blocker_configs
+        let possible_moves: Vec<Box<[Move]>> = blocker_configs
             .iter()
             .map(|block| {
                 slide_blocker_possible_moves(
@@ -185,7 +133,7 @@ impl<M: MoveNotation> SquareMagic<M> {
             }
         }
 
-        SquareMagic::<BishopMove> {
+        SquareMagic {
             moves: magic_moves
                 .iter_mut()
                 // CORRECT BEHAVIOUR: all possible blocker configurations point to a valid move array
@@ -198,20 +146,17 @@ impl<M: MoveNotation> SquareMagic<M> {
     const fn hash(&self, blockers: u64) -> u64 {
         self.hasher.hash(blockers)
     }
-    fn get(&self, blockers: u64) -> &[M] {
+    fn get(&self, blockers: u64) -> &[Move] {
         self.moves[self.hash(blockers) as usize].as_ref()
     }
 }
 
-fn slide_blocker_possible_moves<const N: usize, M>(
+fn slide_blocker_possible_moves<const N: usize>(
     blocker_config: u64,
     start_pos: Position,
     piece: PieceType,
     offsets: [Offset; N],
-) -> Box<[M]>
-where
-    M: MoveNotation,
-{
+) -> Box<[Move]> {
     let mut moves = vec![];
 
     let mut directions = [true; N];
@@ -228,7 +173,7 @@ where
             if let Some(position) = start_pos.with_offset(offset) {
                 directions[index] = blocker_config & (1 << *position) == 0;
 
-                moves.push(M::new(start_pos, position, MoveType::Normal(piece)));
+                moves.push(Move::new(start_pos, position, MoveType::Normal(piece)));
             } else {
                 directions[index] = false
             }
