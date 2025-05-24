@@ -1,3 +1,4 @@
+use std::fmt::Display;
 use std::ops::Deref;
 
 #[derive(Clone, Copy)]
@@ -75,55 +76,57 @@ impl Position {
     pub fn with_offset(self, offset: Offset) -> Option<Self> {
         let offset_self;
         if offset.x < 0 {
-            offset_self = self.sub_x(offset.x.abs() as u8);
-            if offset_self == None {
-                return None;
-            }
+            offset_self = self.sub_x(offset.x.abs() as u8)?;
         } else {
-            offset_self = self.add_x(offset.x as u8);
-            if offset_self == None {
-                return None;
-            }
+            offset_self = self.add_x(offset.x as u8)?;
         }
         if offset.y < 0 {
-            offset_self.unwrap().sub_y(offset.y.abs() as u8)
+            offset_self.sub_y(offset.y.abs() as u8)
         } else {
-            offset_self.unwrap().add_y(offset.y as u8)
+            offset_self.add_y(offset.y as u8)
         }
     }
-
     pub const fn as_mask(&self) -> u64 {
         1 << self.index
     }
-
     #[inline]
-    pub const fn with_x(self, x: u8) -> Self {
-        Position::new(x, self.y())
+    pub fn with_x(self, x: u8) -> Option<Self> {
+        if x >= 8 {
+            return None;
+        }
+        Some(Position::new(x, self.y()))
     }
 
     #[inline]
-    pub const fn with_y(self, y: u8) -> Self {
-        Position::new(self.x(), y)
+    pub fn with_y(self, y: u8) -> Option<Self> {
+        if y >= 8 {
+            return None;
+        }
+        Some(Position::new(self.x(), y))
     }
 
     #[inline]
     pub fn add_x(self, rhs: u8) -> Option<Self> {
-        self.x().checked_add(rhs).map(|x| self.with_x(x))
+        let x = self.x().checked_add(rhs)?;
+        self.with_x(x)
     }
 
     #[inline]
     pub fn add_y(self, rhs: u8) -> Option<Self> {
-        self.y().checked_add(rhs).map(|y| self.with_y(y))
+        let y = self.y().checked_add(rhs)?;
+        self.with_y(y)
     }
 
     #[inline]
     pub fn sub_x(self, rhs: u8) -> Option<Self> {
-        self.x().checked_sub(rhs).map(|x| self.with_x(x))
+        let x = self.x().checked_sub(rhs)?;
+        self.with_x(x)
     }
 
     #[inline]
     pub fn sub_y(self, rhs: u8) -> Option<Self> {
-        self.y().checked_sub(rhs).map(|y| self.with_y(y))
+        let y = self.y().checked_sub(rhs)?;
+        self.with_y(y)
     }
 }
 
@@ -144,5 +147,15 @@ impl TryFrom<(u8, u8)> for Position {
             return Err(());
         }
         Ok(Self::new(value.0, value.1))
+    }
+}
+
+impl Display for Position {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            String::from_utf8(vec![self.x() + b'a', self.y() + b'1']).unwrap()
+        )
     }
 }

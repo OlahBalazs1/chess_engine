@@ -1,5 +1,6 @@
 use crate::piece::PieceType;
 use crate::position::Position;
+use std::fmt::Debug;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum MoveType {
@@ -100,14 +101,40 @@ impl Move {
 
     pub fn castle_from(&self) -> Position {
         if self.to().x() < 3 {
-            self.from().with_x(0)
+            self.from().with_x(0).unwrap()
         } else {
-            self.from().with_x(7)
+            self.from().with_x(7).unwrap()
         }
     }
 
     pub fn is_castle(&self) -> bool {
         self.piece_type() == PieceType::King
             && ((self.from().x() as i8) - (self.to().x() as i8)).abs() == 2
+    }
+}
+impl Debug for Move {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let (piece_prefix, promote_suffix) = match self.move_type {
+            MoveType::Normal(with) => match with {
+                PieceType::Pawn => ("", ""),
+                PieceType::Rook => ("R", ""),
+                PieceType::Bishop => ("B", ""),
+                PieceType::Knight => ("N", ""),
+                PieceType::Queen => ("Q", ""),
+                PieceType::King => ("K", ""),
+            },
+            MoveType::Promotion(to) => match to {
+                PieceType::Pawn => ("", "=P"),
+                PieceType::Rook => ("", "=R"),
+                PieceType::Bishop => ("", "=B"),
+                PieceType::Knight => ("", "=N"),
+                PieceType::Queen => ("", "=Q"),
+                PieceType::King => ("", "=K"),
+            },
+        };
+        let from =
+            String::from_utf8([self.from.x() + b'a', self.from.y() + b'1'].to_vec()).unwrap();
+        let to = String::from_utf8([self.to.x() + b'a', self.to.y() + b'1'].to_vec()).unwrap();
+        write!(f, "{}{}{}{}", piece_prefix, from, to, promote_suffix)
     }
 }

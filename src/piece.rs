@@ -46,6 +46,14 @@ impl Piece {
             Black(_) => Side::Black,
         }
     }
+
+    pub fn filter_side(self, side: Side) -> Option<Self> {
+        match (self, side) {
+            (White(_), Side::White) => Some(self),
+            (Black(_), Side::Black) => Some(self),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]

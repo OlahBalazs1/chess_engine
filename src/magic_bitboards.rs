@@ -1,11 +1,14 @@
+use crate::hashers::*;
 use crate::{
     moving::{Move, MoveType},
     piece::PieceType,
     position::{Offset, Position},
 };
+use std::sync::Arc;
 use std::{iter, sync::LazyLock};
 
-pub static MAGIC_MOVER: LazyLock<MagicMover> = LazyLock::new(|| MagicMover::init([], []));
+pub static MAGIC_MOVER: LazyLock<MagicMover> =
+    LazyLock::new(|| MagicMover::init(ROOK_MAGIC_HASHERS, BISHOP_MAGIC_HASHERS));
 
 pub struct MagicMover {
     rook_magics: Box<[SquareMagic]>,
@@ -43,10 +46,10 @@ impl MagicMover {
 }
 
 #[derive(Clone, Copy)]
-struct MagicHasher {
-    premask: u64,
-    magic: u64,
-    shift: u8,
+pub struct MagicHasher {
+    pub premask: u64,
+    pub magic: u64,
+    pub shift: u8,
 }
 
 impl MagicHasher {
@@ -73,6 +76,12 @@ struct SquareMagic {
 impl SquareMagic {
     fn new_rook(pos: Position, hasher: MagicHasher) -> Self {
         let blocker_configs = generate_rook_blockers(pos);
+        let all_hashed: Vec<_> = blocker_configs
+            .iter()
+            .map(|i| hasher.hash(*i) as usize)
+            .collect();
+
+        let highest = *all_hashed.iter().max().unwrap();
         let possible_moves: Vec<Box<[Move]>> = blocker_configs
             .iter()
             .map(|block| {
@@ -89,12 +98,12 @@ impl SquareMagic {
                 )
             })
             .collect();
-        let mut magic_moves = vec![None; blocker_configs.len()];
-        for (blocker, possible_move) in iter::zip(blocker_configs, possible_moves) {
-            if let Some(collided) = &magic_moves[hasher.hash(blocker) as usize] {
+        let mut magic_moves = vec![None; highest + 1];
+        for (blocker, possible_move) in iter::zip(all_hashed, possible_moves) {
+            if let Some(collided) = &magic_moves[blocker] {
                 assert!(*collided == possible_move, "Magic number is not magic")
             } else {
-                magic_moves[hasher.hash(blocker) as usize] = Some(possible_move)
+                magic_moves[blocker] = Some(possible_move)
             }
         }
 
@@ -107,7 +116,14 @@ impl SquareMagic {
         }
     }
     fn new_bishop(pos: Position, hasher: MagicHasher) -> Self {
-        let blocker_configs = generate_rook_blockers(pos);
+        let blocker_configs = generate_bishop_blockers(pos);
+        let all_hashed: Vec<_> = blocker_configs
+            .iter()
+            .map(|i| hasher.hash(*i) as usize)
+            .collect();
+
+        let highest = *all_hashed.iter().max().unwrap();
+
         let possible_moves: Vec<Box<[Move]>> = blocker_configs
             .iter()
             .map(|block| {
@@ -124,12 +140,12 @@ impl SquareMagic {
                 )
             })
             .collect();
-        let mut magic_moves = vec![None; blocker_configs.len()];
-        for (blocker, possible_move) in iter::zip(blocker_configs, possible_moves) {
-            if let Some(collided) = &magic_moves[hasher.hash(blocker) as usize] {
+        let mut magic_moves = vec![None; highest + 1];
+        for (blocker, possible_move) in iter::zip(all_hashed, possible_moves) {
+            if let Some(collided) = &magic_moves[blocker] {
                 assert!(*collided == possible_move, "Magic number is not magic")
             } else {
-                magic_moves[hasher.hash(blocker) as usize] = Some(possible_move)
+                magic_moves[blocker] = Some(possible_move)
             }
         }
 
@@ -151,16 +167,19 @@ impl SquareMagic {
     }
 }
 
-fn slide_blocker_possible_moves<const N: usize>(
+fn slide_blocker_possible_moves<const N: usize, T>(
     blocker_config: u64,
     start_pos: Position,
     piece: PieceType,
     offsets: [Offset; N],
-) -> Box<[Move]> {
+) -> T
+where
+    T: From<Vec<Move>>,
+{
     let mut moves = vec![];
 
     let mut directions = [true; N];
-    for i in 0..7 {
+    for i in 1..7 {
         let directions_clone = directions.clone();
 
         let offsets = offsets
@@ -171,7 +190,9 @@ fn slide_blocker_possible_moves<const N: usize>(
 
         for (index, offset) in offsets {
             if let Some(position) = start_pos.with_offset(offset) {
-                directions[index] = blocker_config & (1 << *position) == 0;
+                if blocker_config & (1 << *position) != 0 {
+                    directions[index] = false
+                }
 
                 moves.push(Move::new(start_pos, position, MoveType::Normal(piece)));
             } else {
@@ -179,7 +200,7 @@ fn slide_blocker_possible_moves<const N: usize>(
             }
         }
     }
-    moves.into_boxed_slice()
+    moves.into()
 }
 
 fn generate_rook_blockers(pos: Position) -> Box<[u64]> {
@@ -189,7 +210,9 @@ fn generate_rook_blockers(pos: Position) -> Box<[u64]> {
         let bitboard = {
             let mut bitboard = 0u64;
             for (index, i) in indices.iter().enumerate() {
-                bitboard |= (combination & (1 << index) >> index) << i;
+                if combination & (1 << index) != 0 {
+                    bitboard |= 1 << i
+                }
             }
             bitboard
         };
@@ -205,10 +228,10 @@ fn rook_indices(pos: Position) -> Vec<u8> {
     let mut indices = Vec::with_capacity(14);
     for i in 1..7 {
         if i != y {
-            indices.push(*Position::new(x, i));
+            indices.push(pos.with_y(i).unwrap().index());
         }
         if i != x {
-            indices.push(*Position::new(i, y));
+            indices.push(pos.with_x(i).unwrap().index());
         }
     }
     indices
@@ -246,10 +269,24 @@ fn bishop_indices(pos: Position) -> Vec<u8> {
         if y1 > 0 && y1 < 7 && y1 != y2 {
             indices.push((y1 * 8 + i) as u8)
         }
-        if y2 > 0 && y2 < 7 {
+        if y2 > 0 && y2 < 7 && y1 != y2 {
             indices.push((y2 * 8 + i) as u8)
         }
     }
 
     indices
+}
+
+pub fn print_bits(i: u64) {
+    for y in (0..8).rev() {
+        for x in 0..8 {
+            if i & (1 << (x + y * 8)) != 0 {
+                print!("1")
+            } else {
+                print!(".")
+            }
+        }
+        println!("")
+    }
+    println!("")
 }

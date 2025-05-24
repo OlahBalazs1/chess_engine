@@ -3,6 +3,7 @@ use std::hash::Hash;
 use crate::moving::{Castle, Move};
 use crate::piece::{Piece, PieceType, Side};
 use crate::position::Position;
+use crate::search::MovesIter;
 use crate::zobrist::*;
 
 use PieceType::*;
@@ -16,12 +17,98 @@ pub struct Bitboards {
     pub queen: u64,
     pub king: u64,
 }
-struct SearchBoardState {
+pub struct SearchBoardState {
     state: BoardState,
     // Attacked by black
     black_attacked: Bitboards,
     // Attacked by white
     white_attacked: Bitboards,
+}
+
+impl SearchBoardState {
+    pub fn side(&self) -> Side {
+        self.state.side
+    }
+    pub fn curr_side_bitboards(&self) -> &Bitboards {
+        self.side_bitboards(self.side())
+    }
+
+    pub fn side_bitboards(&self, side: Side) -> &Bitboards {
+        self.state.side_bitboard(side)
+    }
+
+    pub fn side_attacked(&self, side: Side) -> &Bitboards {
+        match side {
+            Side::White => &self.white_attacked,
+            Side::Black => &self.black_attacked,
+        }
+    }
+
+    pub fn curr_side_attacked(&self) -> &Bitboards {
+        self.side_attacked(self.state.side)
+    }
+
+    pub fn get_piece_at(&self, pos: Position) -> Option<Piece> {
+        self.state.piece_at_position(pos)
+    }
+
+    pub fn find_moves_at<T>(&self, pos: Position, side: Side) -> Option<T>
+    where
+        T: From<Vec<Move>>,
+    {
+        use crate::search::*;
+        use PieceType::*;
+        let type_at = self.state.piece_at_position(pos)?.filter_side(side)?.role();
+        let allies = self.curr_side_bitboards().combined();
+        let enemies = self.side_bitboards(side.opposite()).combined();
+        let must_block = self.side_attacked(side.opposite()).combined();
+        let castle_rights = self.state.side_castle_rights(side);
+        Some(
+            match type_at {
+                Pawn => find_pawn(side, pos, allies, enemies, must_block),
+                Rook => find_rook(pos, allies, allies | enemies),
+                Knight => find_knight(pos, allies),
+                Bishop => find_bishop(pos, allies, allies | enemies),
+                Queen => find_queen(pos, allies, allies | enemies),
+                King => find_king(
+                    pos,
+                    allies,
+                    self.side_attacked(self.side().opposite()).combined(),
+                    self.side_bitboards(side.opposite()).combined(),
+                    castle_rights,
+                ),
+            }
+            .into(),
+        )
+    }
+
+    pub fn moves_iter(&self) -> MovesIter {
+        MovesIter::init(self)
+    }
+}
+
+impl Default for SearchBoardState {
+    fn default() -> Self {
+        Self {
+            state: BoardState::default(),
+            black_attacked: Bitboards {
+                pawn: 0xFF0000000000,
+                rook: 0,
+                knight: 0,
+                bishop: 0,
+                queen: 0,
+                king: 0,
+            },
+            white_attacked: Bitboards {
+                pawn: 0xFF0000,
+                rook: 0,
+                knight: 0,
+                bishop: 0,
+                queen: 0,
+                king: 0,
+            },
+        }
+    }
 }
 
 impl Bitboards {
@@ -140,7 +227,7 @@ impl BoardState {
             Side::Black => &mut self.black_castling,
         }
     }
-    pub fn side_castle_rights(&mut self, side: Side) -> (bool, bool) {
+    pub fn side_castle_rights(&self, side: Side) -> (bool, bool) {
         match side {
             Side::White => self.white_castling,
             Side::Black => self.black_castling,
@@ -151,6 +238,13 @@ impl BoardState {
         match side {
             Side::White => &mut self.white,
             Side::Black => &mut self.black,
+        }
+    }
+
+    pub fn side_bitboard(&self, side: Side) -> &Bitboards {
+        match side {
+            Side::White => &self.white,
+            Side::Black => &self.black,
         }
     }
 
@@ -188,7 +282,7 @@ impl BoardState {
             if mov.to() == en_passant_square {
                 *after_move
                     .side_bitboard_mut(self.side.opposite())
-                    .get_bitboard_mut(Pawn) ^= mov.from().with_x(mov.to().x()).as_mask()
+                    .get_bitboard_mut(Pawn) ^= mov.from().with_x(mov.to().x()).unwrap().as_mask()
             }
         }
 
