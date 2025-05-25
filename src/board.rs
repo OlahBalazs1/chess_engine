@@ -56,21 +56,26 @@ impl SearchBoard {
         let type_at = self.state.board.get(pos)?.filter_side(side)?.piece_type;
         let allies = self.curr_side_bitboards().combined();
         let enemies = self.side_bitboards(side.opposite()).combined();
+        let all_pieces = allies | enemies;
         let must_block = self.side_attacked(side.opposite()).combined();
         let castle_rights = self.state.side_castle_rights(side);
+        let all_square_data = &self.state.board;
+
         Some(
             match type_at {
-                Pawn => find_pawn(side, pos, allies, enemies, must_block),
-                Rook => find_rook(pos, allies, allies | enemies),
-                Knight => find_knight(pos, allies),
-                Bishop => find_bishop(pos, allies, allies | enemies),
-                Queen => find_queen(pos, allies, allies | enemies),
+                Pawn => find_pawn(side, pos, allies, enemies, must_block, all_square_data),
+                Rook => find_rook(pos, allies, all_pieces, all_square_data, side.opposite()),
+                Knight => find_knight(pos, allies, all_square_data, side.opposite()),
+                Bishop => find_bishop(pos, allies, all_pieces, all_square_data, side.opposite()),
+                Queen => find_queen(pos, allies, all_pieces, all_square_data, side.opposite()),
                 King => find_king(
                     pos,
                     allies,
                     self.side_attacked(self.side().opposite()).combined(),
                     self.side_bitboards(side.opposite()).combined(),
                     castle_rights,
+                    all_square_data,
+                    side.opposite(),
                 ),
             }
             .into(),

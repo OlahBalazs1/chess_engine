@@ -1,6 +1,6 @@
 use rand::seq::IndexedRandom;
 
-use crate::board::{Bitboards, BoardState};
+use crate::board::{Bitboards, BoardRepr, BoardState};
 use std::iter;
 use std::ops::{Deref, Index, Range};
 use std::sync::Arc;
@@ -62,7 +62,14 @@ impl Iterator for MovesIter<'_> {
     }
 }
 
-pub fn find_pawn<T>(side: Side, pos: Position, allies: u64, enemies: u64, must_block: u64) -> T
+pub fn find_pawn<T>(
+    side: Side,
+    pos: Position,
+    allies: u64,
+    enemies: u64,
+    must_block: u64,
+    all_square_data: &BoardRepr,
+) -> T
 where
     T: From<Vec<Move>>,
 {
@@ -71,6 +78,7 @@ where
         Side::White => 1,
         Side::Black => -1,
     };
+    let take_side = side.opposite();
 
     // Takes
     use PieceType::*;
@@ -85,10 +93,24 @@ where
         .for_each(|to| match (side, to.y()) {
             (Side::White, 7) | (Side::Black, 0) => {
                 for promote_to in [Rook, Knight, Bishop, Queen] {
-                    moves.push(Move::new(pos, to, MoveType::Promotion(promote_to)))
+                    moves.push(Move::new(
+                        pos,
+                        to,
+                        MoveType::Promotion(promote_to),
+                        all_square_data
+                            .get(pos)
+                            .and_then(|i| i.filter_side(take_side).map(|i| i.role())),
+                    ))
                 }
             }
-            _ => moves.push(Move::new(pos, to, MoveType::Normal(PieceType::Pawn))),
+            _ => moves.push(Move::new(
+                pos,
+                to,
+                MoveType::Normal(PieceType::Pawn),
+                all_square_data
+                    .get(pos)
+                    .and_then(|i| i.filter_side(take_side).map(|i| i.role())),
+            )),
         });
 
     let forward = [Offset::new(0, yo), Offset::new(0, 2 * yo)];
@@ -103,13 +125,20 @@ where
         if (allies & enemies) & to.as_mask() != 0 {
             break;
         }
-        moves.push(Move::new(pos, to, MoveType::Normal(PieceType::Pawn)))
+        match (side, to.y()) {
+            (Side::White, 7) | (Side::Black, 0) => {
+                for promote_to in [Rook, Knight, Bishop, Queen] {
+                    moves.push(Move::new(pos, to, MoveType::Promotion(promote_to), None))
+                }
+            }
+            _ => moves.push(Move::new(pos, to, MoveType::Normal(PieceType::Pawn), None)),
+        }
     }
 
     moves.into()
 }
 
-pub fn find_knight<T>(pos: Position, allies: u64) -> T
+pub fn find_knight<T>(pos: Position, allies: u64, all_square_data: &BoardRepr, side: Side) -> T
 where
     T: From<Vec<Move>>,
 {
@@ -126,7 +155,16 @@ where
     .iter()
     .filter_map(|&off| pos.with_offset(off))
     .filter(|p| allies & p.as_mask() == 0)
-    .map(|i| Move::new(pos, i, MoveType::Normal(PieceType::Knight)))
+    .map(|i| {
+        Move::new(
+            pos,
+            i,
+            MoveType::Normal(PieceType::Knight),
+            all_square_data
+                .get(pos)
+                .and_then(|i| i.filter_side(side).map(|i| i.role())),
+        )
+    })
     .collect::<Vec<_>>()
     .into()
 }
@@ -137,6 +175,8 @@ pub fn find_king<T>(
     attacked_squares: u64,
     enemies: u64,
     castle_rights: (bool, bool),
+    all_square_data: &BoardRepr,
+    side: Side,
 ) -> T
 where
     T: From<Vec<Move>>,
@@ -158,7 +198,16 @@ where
         ]
         .iter()
         .filter_map(|i| pos.with_offset(*i))
-        .map(|i| Move::new(pos, i, MoveType::Normal(PieceType::King)))
+        .map(|i| {
+            Move::new(
+                pos,
+                i,
+                MoveType::Normal(PieceType::King),
+                all_square_data
+                    .get(pos)
+                    .and_then(|i| i.filter_side(side).map(|i| i.role())),
+            )
+        })
         .filter(|i| must_avoid & (i.from().as_mask() | i.to().as_mask()) == 0),
     );
     let (short, long) = match pos.y() {
@@ -173,6 +222,7 @@ where
             pos,
             pos.with_x(2).unwrap(),
             MoveType::Normal(PieceType::King),
+            None,
         ));
     }
 
@@ -181,14 +231,28 @@ where
             pos,
             pos.with_x(6).unwrap(),
             MoveType::Normal(PieceType::King),
+            None,
         ));
     }
 
     moves.into()
 }
 
-pub fn find_rook(pos: Position, allies: u64, all_pieces: u64) -> Vec<Move> {
-    find_rook_with_magic(pos, allies, all_pieces, &*MAGIC_MOVER)
+pub fn find_rook(
+    pos: Position,
+    allies: u64,
+    all_pieces: u64,
+    all_square_data: &BoardRepr,
+    side: Side,
+) -> Vec<Move> {
+    find_rook_with_magic(
+        pos,
+        allies,
+        all_pieces,
+        &*MAGIC_MOVER,
+        all_square_data,
+        side,
+    )
 }
 
 pub fn find_rook_with_magic<T>(
@@ -196,6 +260,8 @@ pub fn find_rook_with_magic<T>(
     allies: u64,
     all_pieces: u64,
     magic_mover: &MagicMover,
+    all_square_data: &BoardRepr,
+    side: Side,
 ) -> T
 where
     T: From<Vec<Move>>,
@@ -205,16 +271,38 @@ where
         .iter()
         .cloned()
         .filter(|i| allies & i.as_mask() == 0)
-        .map(|i| Move::new(pos, i, MoveType::Normal(PieceType::Rook)))
+        .map(|i| {
+            Move::new(
+                pos,
+                i,
+                MoveType::Normal(PieceType::Rook),
+                all_square_data
+                    .get(pos)
+                    .and_then(|i| i.filter_side(side).map(|i| i.role())),
+            )
+        })
         .collect::<Vec<_>>()
         .into()
 }
 
-pub fn find_bishop<T>(pos: Position, allies: u64, all_pieces: u64) -> T
+pub fn find_bishop<T>(
+    pos: Position,
+    allies: u64,
+    all_pieces: u64,
+    all_square_data: &BoardRepr,
+    side: Side,
+) -> T
 where
     T: From<Vec<Move>>,
 {
-    find_bishop_with_magic(pos, allies, all_pieces, &*MAGIC_MOVER)
+    find_bishop_with_magic(
+        pos,
+        allies,
+        all_pieces,
+        &*MAGIC_MOVER,
+        all_square_data,
+        side,
+    )
 }
 
 pub fn find_bishop_with_magic<T>(
@@ -222,6 +310,8 @@ pub fn find_bishop_with_magic<T>(
     allies: u64,
     all_pieces: u64,
     magic_mover: &MagicMover,
+    all_square_data: &BoardRepr,
+    side: Side,
 ) -> T
 where
     T: From<Vec<Move>>,
@@ -231,16 +321,38 @@ where
         .iter()
         .cloned()
         .filter(|i| allies & i.as_mask() == 0)
-        .map(|i| Move::new(pos, i, MoveType::Normal(PieceType::Bishop)))
+        .map(|i| {
+            Move::new(
+                pos,
+                i,
+                MoveType::Normal(PieceType::Bishop),
+                all_square_data
+                    .get(pos)
+                    .and_then(|i| i.filter_side(side).map(|i| i.role())),
+            )
+        })
         .collect::<Vec<_>>()
         .into()
 }
 
-pub fn find_queen<T>(pos: Position, allies: u64, all_pieces: u64) -> T
+pub fn find_queen<T>(
+    pos: Position,
+    allies: u64,
+    all_pieces: u64,
+    all_square_data: &BoardRepr,
+    side: Side,
+) -> T
 where
     T: From<Vec<Move>>,
 {
-    find_queen_with_magic(pos, allies, all_pieces, &*MAGIC_MOVER)
+    find_queen_with_magic(
+        pos,
+        allies,
+        all_pieces,
+        &*MAGIC_MOVER,
+        all_square_data,
+        side,
+    )
 }
 
 pub fn find_queen_with_magic<T>(
@@ -248,23 +360,39 @@ pub fn find_queen_with_magic<T>(
     allies: u64,
     all_pieces: u64,
     magic_mover: &MagicMover,
+    all_square_data: &BoardRepr,
+    side: Side,
 ) -> T
 where
     T: From<Vec<Move>>,
 {
     let mut queen_moves: Vec<Move> = vec![];
-    let bishop_moves = find_bishop_with_magic::<Vec<Move>>(pos, allies, all_pieces, magic_mover)
-        .into_iter()
-        .map(|mut i| {
-            i.move_type = MoveType::Normal(PieceType::Queen);
-            i
-        });
-    let rook_moves = find_rook_with_magic::<Vec<Move>>(pos, allies, all_pieces, magic_mover)
-        .into_iter()
-        .map(|mut i| {
-            i.move_type = MoveType::Normal(PieceType::Queen);
-            i
-        });
+    let bishop_moves = find_bishop_with_magic::<Vec<Move>>(
+        pos,
+        allies,
+        all_pieces,
+        magic_mover,
+        all_square_data,
+        side,
+    )
+    .into_iter()
+    .map(|mut i| {
+        i.move_type = MoveType::Normal(PieceType::Queen);
+        i
+    });
+    let rook_moves = find_rook_with_magic::<Vec<Move>>(
+        pos,
+        allies,
+        all_pieces,
+        magic_mover,
+        all_square_data,
+        side,
+    )
+    .into_iter()
+    .map(|mut i| {
+        i.move_type = MoveType::Normal(PieceType::Queen);
+        i
+    });
     for (bishop, rook) in iter::zip(bishop_moves, rook_moves) {
         queen_moves.push(bishop);
         queen_moves.push(rook);

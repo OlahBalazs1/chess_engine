@@ -22,6 +22,7 @@ pub struct Move {
     pub move_type: MoveType,
     pub from: Position,
     pub to: Position,
+    pub take: Option<PieceType>,
 }
 
 pub enum Castle {
@@ -31,26 +32,12 @@ pub enum Castle {
 }
 
 impl Move {
-    pub fn new_normal(from: Position, to: Position, with: PieceType) -> Self {
-        Self {
-            from,
-            to,
-            move_type: MoveType::Normal(with),
-        }
-    }
-    pub fn new_promotion(from: Position, to: Position, promote_to: PieceType) -> Self {
-        Self {
-            from,
-            to,
-            move_type: MoveType::Promotion(promote_to),
-        }
-    }
-
-    pub fn new(from: Position, to: Position, move_type: MoveType) -> Self {
+    pub fn new(from: Position, to: Position, move_type: MoveType, take: Option<PieceType>) -> Self {
         Self {
             from,
             to,
             move_type,
+            take,
         }
     }
     pub fn to(&self) -> Position {
