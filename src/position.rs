@@ -128,6 +128,15 @@ impl Position {
         let y = self.y().checked_sub(rhs)?;
         self.with_y(y)
     }
+
+    #[inline]
+    pub fn snap_to_side(self) -> Self {
+        if self.x() <= 3 {
+            self.with_x(0).unwrap()
+        } else {
+            self.with_x(7).unwrap()
+        }
+    }
 }
 
 impl TryFrom<u8> for Position {

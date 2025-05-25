@@ -40,20 +40,7 @@ impl ZobristRandom {
         // order of hashing bitboards
         // wPawn, wRook, wKnight, wBishop, wQueen, wKing
         // bPawn, bRook, bKnight, bBishop, bQueen, bKing
-        let pieces = [
-            state.white.pawn,
-            state.white.rook,
-            state.white.knight,
-            state.white.bishop,
-            state.white.queen,
-            state.white.king,
-            state.black.pawn,
-            state.black.rook,
-            state.black.knight,
-            state.black.bishop,
-            state.black.queen,
-            state.black.king,
-        ];
+        let pieces = state.white.state.iter().chain(state.black.state.iter());
         let mut hash = 0;
         for (random, board) in std::iter::zip(self.piece_boards, pieces) {
             for square in 0..64 {
@@ -86,8 +73,12 @@ impl ZobristRandom {
     }
 
     pub fn get_value(&self, piece: Piece, pos: Position) -> u64 {
+        use Side::*;
         match piece {
-            Piece::White(piece) => match piece {
+            Piece {
+                side: White,
+                piece_type: piece,
+            } => match piece {
                 Pawn => self.piece_boards[0][*pos as usize],
                 Rook => self.piece_boards[1][*pos as usize],
                 Knight => self.piece_boards[2][*pos as usize],
@@ -95,7 +86,10 @@ impl ZobristRandom {
                 Queen => self.piece_boards[4][*pos as usize],
                 King => self.piece_boards[5][*pos as usize],
             },
-            Piece::Black(piece) => match piece {
+            Piece {
+                side: Black,
+                piece_type: piece,
+            } => match piece {
                 Pawn => self.piece_boards[6][*pos as usize],
                 Rook => self.piece_boards[7][*pos as usize],
                 Knight => self.piece_boards[8][*pos as usize],

@@ -6,7 +6,7 @@ use std::ops::{Deref, Index, Range};
 use std::sync::Arc;
 
 use crate::{
-    board::SearchBoardState,
+    board::SearchBoard,
     magic_bitboards::{MagicMover, MAGIC_MOVER},
     moving::{Move, MoveType},
     piece::{PieceType, Side},
@@ -15,11 +15,11 @@ use crate::{
 
 pub struct MovesIter<'a> {
     source: std::vec::IntoIter<Move>,
-    board: &'a SearchBoardState,
+    board: &'a SearchBoard,
     on_square: Range<u8>,
 }
 impl<'a> MovesIter<'a> {
-    pub fn init(board: &'a SearchBoardState) -> Self {
+    pub fn init(board: &'a SearchBoard) -> Self {
         let mut on_square = 0u8..64;
         let mut source = None;
         while let Some(next_square) = on_square.next() {
@@ -204,7 +204,8 @@ where
         .get_rook(pos, all_pieces)
         .iter()
         .cloned()
-        .filter(|i| allies & i.to().as_mask() == 0)
+        .filter(|i| allies & i.as_mask() == 0)
+        .map(|i| Move::new(pos, i, MoveType::Normal(PieceType::Rook)))
         .collect::<Vec<_>>()
         .into()
 }
@@ -229,7 +230,8 @@ where
         .get_bishop(pos, all_pieces)
         .iter()
         .cloned()
-        .filter(|i| allies & i.to().as_mask() == 0)
+        .filter(|i| allies & i.as_mask() == 0)
+        .map(|i| Move::new(pos, i, MoveType::Normal(PieceType::Bishop)))
         .collect::<Vec<_>>()
         .into()
 }

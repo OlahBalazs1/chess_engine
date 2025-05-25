@@ -36,11 +36,11 @@ impl MagicMover {
         }
     }
 
-    pub fn get_rook(&self, pos: Position, blockers: u64) -> &[Move] {
+    pub fn get_rook(&self, pos: Position, blockers: u64) -> &[Position] {
         self.rook_magics[*pos as usize].get(blockers)
     }
 
-    pub fn get_bishop(&self, pos: Position, blockers: u64) -> &[Move] {
+    pub fn get_bishop(&self, pos: Position, blockers: u64) -> &[Position] {
         self.bishop_magics[*pos as usize].get(blockers)
     }
 }
@@ -69,7 +69,7 @@ impl MagicHasher {
 }
 
 struct SquareMagic {
-    moves: Box<[Box<[Move]>]>,
+    moves: Box<[Box<[Position]>]>,
     hasher: MagicHasher,
 }
 
@@ -82,13 +82,12 @@ impl SquareMagic {
             .collect();
 
         let highest = *all_hashed.iter().max().unwrap();
-        let possible_moves: Vec<Box<[Move]>> = blocker_configs
+        let possible_moves: Vec<Box<[Position]>> = blocker_configs
             .iter()
             .map(|block| {
                 slide_blocker_possible_moves(
                     *block,
                     pos,
-                    PieceType::Rook,
                     [
                         Offset::new(1, 0),
                         Offset::new(-1, 0),
@@ -124,13 +123,12 @@ impl SquareMagic {
 
         let highest = *all_hashed.iter().max().unwrap();
 
-        let possible_moves: Vec<Box<[Move]>> = blocker_configs
+        let possible_moves: Vec<Box<[Position]>> = blocker_configs
             .iter()
             .map(|block| {
                 slide_blocker_possible_moves(
                     *block,
                     pos,
-                    PieceType::Bishop,
                     [
                         Offset::new(1, 1),
                         Offset::new(1, -1),
@@ -162,7 +160,7 @@ impl SquareMagic {
     const fn hash(&self, blockers: u64) -> u64 {
         self.hasher.hash(blockers)
     }
-    fn get(&self, blockers: u64) -> &[Move] {
+    fn get(&self, blockers: u64) -> &[Position] {
         self.moves[self.hash(blockers) as usize].as_ref()
     }
 }
@@ -170,11 +168,10 @@ impl SquareMagic {
 fn slide_blocker_possible_moves<const N: usize, T>(
     blocker_config: u64,
     start_pos: Position,
-    piece: PieceType,
     offsets: [Offset; N],
 ) -> T
 where
-    T: From<Vec<Move>>,
+    T: From<Vec<Position>>,
 {
     let mut moves = vec![];
 
@@ -194,7 +191,7 @@ where
                     directions[index] = false
                 }
 
-                moves.push(Move::new(start_pos, position, MoveType::Normal(piece)));
+                moves.push(position);
             } else {
                 directions[index] = false
             }

@@ -2,13 +2,14 @@ use crate::position::Position;
 use std::ops::Deref;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
+#[repr(u8)]
 pub enum PieceType {
-    Pawn,
-    Rook,
-    Knight,
-    Bishop,
-    Queen,
-    King,
+    Pawn = 0,
+    Rook = 1,
+    Knight = 2,
+    Bishop = 3,
+    Queen = 4,
+    King = 5,
 }
 impl PieceType {
     pub fn with_side(self, side: Side) -> Piece {
@@ -16,50 +17,81 @@ impl PieceType {
     }
 }
 use PieceType::*;
+use Side::*;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
-pub enum Piece {
-    White(PieceType),
-    Black(PieceType),
+pub struct Piece {
+    pub side: Side,
+    pub piece_type: PieceType,
 }
-use Piece::*;
 
 impl Piece {
     pub fn new(piece_type: PieceType, side: Side) -> Self {
-        if side == Side::White {
-            White(piece_type)
-        } else {
-            Black(piece_type)
+        Self { side, piece_type }
+    }
+
+    pub fn white(piece_type: PieceType) -> Self {
+        Self {
+            side: White,
+            piece_type,
+        }
+    }
+    pub fn black(piece_type: PieceType) -> Self {
+        Self {
+            side: Black,
+            piece_type,
         }
     }
 
     pub const fn role(self) -> PieceType {
-        match self {
-            White(role) => role,
-            Black(role) => role,
-        }
+        self.piece_type
     }
 
     pub const fn side(self) -> Side {
-        match self {
-            White(_) => Side::White,
-            Black(_) => Side::Black,
+        self.side
+    }
+    pub fn as_u8(self) -> u8 {
+        (self.side as u8) + (self.piece_type as u8)
+    }
+
+    pub fn from_u8(repr: u8) -> Self {
+        match repr {
+            0b1000 => Self::black(Pawn),
+            0b1001 => Self::black(Rook),
+            0b1010 => Self::black(Knight),
+            0b1011 => Self::black(Bishop),
+            0b1100 => Self::black(Queen),
+            0b1101 => Self::black(King),
+            0b0000 => Self::white(Pawn),
+            0b0001 => Self::white(Rook),
+            0b0010 => Self::white(Knight),
+            0b0011 => Self::white(Bishop),
+            0b0100 => Self::white(Queen),
+            0b0101 => Self::white(King),
+            _ => panic!("Invalid representation!"),
         }
     }
 
+    pub unsafe fn from_u8_unchecked(repr: u8) -> Self {
+        let side: Side = unsafe { std::mem::transmute(repr & 0b1000) };
+        let piece_type = unsafe { std::mem::transmute(repr & 0b0111) };
+
+        Self { side, piece_type }
+    }
+
     pub fn filter_side(self, side: Side) -> Option<Self> {
-        match (self, side) {
-            (White(_), Side::White) => Some(self),
-            (Black(_), Side::Black) => Some(self),
-            _ => None,
+        if self.side == side {
+            return Some(self);
         }
+        None
     }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
+#[repr(u8)]
 pub enum Side {
-    White,
-    Black,
+    White = 0,
+    Black = 8,
 }
 
 impl Side {

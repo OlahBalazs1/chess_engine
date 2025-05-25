@@ -6,6 +6,15 @@ use std::fmt::Debug;
 pub enum MoveType {
     Normal(PieceType),
     Promotion(PieceType),
+    Castle { rook_pos_after: Position },
+}
+#[derive(Clone)]
+pub struct Unmove {
+    mov: Move,
+    en_passant_square: Option<Position>,
+    white_castling: (bool, bool),
+    black_castling: (bool, bool),
+    zobrist: u64,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -54,6 +63,7 @@ impl Move {
         match self.move_type {
             MoveType::Normal(role) => role,
             MoveType::Promotion(_) => PieceType::Pawn,
+            MoveType::Castle { .. } => PieceType::King,
         }
     }
 
@@ -61,6 +71,7 @@ impl Move {
         match self.move_type {
             MoveType::Normal(_) => None,
             MoveType::Promotion(promote) => Some(promote),
+            MoveType::Castle { .. } => None,
         }
     }
     pub fn is_pawn_starter(&self) -> bool {
@@ -72,44 +83,6 @@ impl Move {
 
     pub fn en_passant_square(&self) -> Position {
         Position::from_index((*self.from() + *self.to()) / 2)
-    }
-
-    pub fn rook_square_after_castle(&self) -> Position {
-        Position::from_index((*self.from() + *self.to()) / 2)
-    }
-
-    pub fn castle(&self) -> Castle {
-        if self.is_castle() {
-            let castle_from = self.castle_from();
-            match castle_from.x() {
-                0 => Castle::Long {
-                    from: castle_from,
-                    to: self.rook_square_after_castle(),
-                },
-                7 => Castle::Short {
-                    from: castle_from,
-                    to: self.rook_square_after_castle(),
-                },
-                _ => panic!(
-                    "MoveNotation::castle_from() returned a position with an x value other than 0 or 7"
-                ),
-            }
-        } else {
-            Castle::Not
-        }
-    }
-
-    pub fn castle_from(&self) -> Position {
-        if self.to().x() < 3 {
-            self.from().with_x(0).unwrap()
-        } else {
-            self.from().with_x(7).unwrap()
-        }
-    }
-
-    pub fn is_castle(&self) -> bool {
-        self.piece_type() == PieceType::King
-            && ((self.from().x() as i8) - (self.to().x() as i8)).abs() == 2
     }
 }
 impl Debug for Move {
@@ -130,6 +103,21 @@ impl Debug for Move {
                 PieceType::Knight => ("", "=N"),
                 PieceType::Queen => ("", "=Q"),
                 PieceType::King => ("", "=K"),
+            },
+            MoveType::Castle {
+                rook_pos_after: pos,
+            } => match pos.snap_to_side().x() {
+                0 => {
+                    write!(f, "O-O-O");
+                    return Ok(());
+                }
+                7 => {
+                    write!(f, "O-O");
+                    return Ok(());
+                }
+                _ => {
+                    unreachable!()
+                }
             },
         };
         let from =
