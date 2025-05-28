@@ -7,6 +7,56 @@ use crate::{
 use std::sync::Arc;
 use std::{iter, sync::LazyLock};
 
+struct MagicDataBuilder {
+    normal: Option<Vec<Position>>,
+    takes: Option<Vec<Position>>,
+    bitboard: u64,
+}
+impl MagicDataBuilder {
+    fn new() -> Self {
+        Self {
+            normal: None,
+            takes: None,
+            bitboard: 0,
+        }
+    }
+    fn add_normal(&mut self, data: Position) {
+        match self.normal.as_mut() {
+            Some(i) => i.push(data),
+            None => self.normal = Some(vec![data]),
+        }
+        self.bitboard |= data.as_mask()
+    }
+    fn add_take(&mut self, data: Position) {
+        match self.takes.as_mut() {
+            Some(i) => i.push(data),
+            None => self.takes = Some(vec![data]),
+        }
+        self.bitboard |= data.as_mask()
+    }
+
+    fn finalize(mut self) -> MagicData {
+        MagicData {
+            normal: self.normal.take().unwrap_or(vec![]).into_boxed_slice(),
+            takes: self.takes.take().unwrap_or(vec![]).into_boxed_slice(),
+            bitboard: self.bitboard,
+        }
+    }
+}
+
+#[derive(Clone)]
+pub struct MagicData {
+    pub normal: Box<[Position]>,
+    pub takes: Box<[Position]>,
+    pub bitboard: u64,
+}
+
+impl PartialEq for MagicData {
+    fn eq(&self, other: &Self) -> bool {
+        return self.bitboard == other.bitboard;
+    }
+}
+
 pub static MAGIC_MOVER: LazyLock<MagicMover> =
     LazyLock::new(|| MagicMover::init(ROOK_MAGIC_HASHERS, BISHOP_MAGIC_HASHERS));
 
@@ -36,11 +86,11 @@ impl MagicMover {
         }
     }
 
-    pub fn get_rook(&self, pos: Position, blockers: u64) -> &[Position] {
+    pub fn get_rook(&self, pos: Position, blockers: u64) -> &MagicData {
         self.rook_magics[*pos as usize].get(blockers)
     }
 
-    pub fn get_bishop(&self, pos: Position, blockers: u64) -> &[Position] {
+    pub fn get_bishop(&self, pos: Position, blockers: u64) -> &MagicData {
         self.bishop_magics[*pos as usize].get(blockers)
     }
 }
@@ -69,7 +119,7 @@ impl MagicHasher {
 }
 
 struct SquareMagic {
-    moves: Box<[Box<[Position]>]>,
+    moves: Box<[Option<MagicData>]>,
     hasher: MagicHasher,
 }
 
@@ -82,7 +132,7 @@ impl SquareMagic {
             .collect();
 
         let highest = *all_hashed.iter().max().unwrap();
-        let possible_moves: Vec<Box<[Position]>> = blocker_configs
+        let possible_moves: Vec<_> = blocker_configs
             .iter()
             .map(|block| {
                 slide_blocker_possible_moves(
@@ -107,10 +157,7 @@ impl SquareMagic {
         }
 
         SquareMagic {
-            moves: magic_moves
-                .iter_mut()
-                .map(|i| i.take().unwrap_or_else(|| Box::new([])))
-                .collect(),
+            moves: magic_moves.into_boxed_slice(),
             hasher,
         }
     }
@@ -123,7 +170,7 @@ impl SquareMagic {
 
         let highest = *all_hashed.iter().max().unwrap();
 
-        let possible_moves: Vec<Box<[Position]>> = blocker_configs
+        let possible_moves: Vec<_> = blocker_configs
             .iter()
             .map(|block| {
                 slide_blocker_possible_moves(
@@ -148,11 +195,7 @@ impl SquareMagic {
         }
 
         SquareMagic {
-            moves: magic_moves
-                .iter_mut()
-                // CORRECT BEHAVIOUR: all possible blocker configurations point to a valid move array
-                .map(|i| i.take().unwrap_or_else(|| Box::new([])))
-                .collect(),
+            moves: magic_moves.into(),
             hasher,
         }
     }
@@ -160,20 +203,19 @@ impl SquareMagic {
     const fn hash(&self, blockers: u64) -> u64 {
         self.hasher.hash(blockers)
     }
-    fn get(&self, blockers: u64) -> &[Position] {
-        self.moves[self.hash(blockers) as usize].as_ref()
+    fn get(&self, blockers: u64) -> &MagicData {
+        self.moves[self.hash(blockers) as usize]
+            .as_ref()
+            .expect("Magic number should be validated.")
     }
 }
 
-fn slide_blocker_possible_moves<const N: usize, T>(
+fn slide_blocker_possible_moves<const N: usize>(
     blocker_config: u64,
     start_pos: Position,
     offsets: [Offset; N],
-) -> T
-where
-    T: From<Vec<Position>>,
-{
-    let mut moves = vec![];
+) -> MagicData {
+    let mut moves = MagicDataBuilder::new();
 
     let mut directions = [true; N];
     for i in 1..7 {
@@ -188,16 +230,17 @@ where
         for (index, offset) in offsets {
             if let Some(position) = start_pos.with_offset(offset) {
                 if blocker_config & (1 << *position) != 0 {
-                    directions[index] = false
+                    directions[index] = false;
+                    moves.add_take(position);
+                } else {
+                    moves.add_normal(position);
                 }
-
-                moves.push(position);
             } else {
                 directions[index] = false
             }
         }
     }
-    moves.into()
+    moves.finalize()
 }
 
 fn generate_rook_blockers(pos: Position) -> Box<[u64]> {

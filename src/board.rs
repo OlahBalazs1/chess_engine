@@ -1,23 +1,33 @@
 use std::hash::Hash;
+use std::ops::Index;
 use std::rc::{Rc, Weak};
 
 use crate::moving::{Castle, Move};
 use crate::piece::{Piece, PieceType, Side};
 use crate::position::{self, Position};
-use crate::search::MovesIter;
+use crate::search_data::{CheckPath, PinState};
 use crate::zobrist::*;
 
 use PieceType::*;
 
+pub const PAWN: usize = 0;
+pub const ROOK: usize = 1;
+pub const KNIGHT: usize = 2;
+pub const BISHOP: usize = 3;
+pub const QUEEN: usize = 4;
+pub const KING: usize = 5;
+
 pub struct SearchBoard {
-    state: BoardState,
+    pub state: BoardState,
     // Attacked by black
     black_attacked: Bitboards,
     // Attacked by white
     white_attacked: Bitboards,
 
-    black_pin_state: Bitboards,
-    white_pin_state: Bitboards,
+    pub pin_state: PinState,
+
+    // Not worth checking if 2 paths exist (-> 2 different pieces would need to be captured)
+    check_paths: CheckPath,
 }
 
 impl SearchBoard {
@@ -47,52 +57,90 @@ impl SearchBoard {
         self.state.piece_at_position(pos)
     }
 
-    pub fn find_moves_at<T>(&self, pos: Position, side: Side) -> Option<T>
-    where
-        T: From<Vec<Move>>,
-    {
+    // TODO should probably be in search.rs
+    pub fn find_moves_at(&self, moves: &mut Vec<Move>, pos: Position, check_paths: &mut CheckPath) {
         use crate::search::*;
         use PieceType::*;
-        let type_at = self.state.board.get(pos)?.filter_side(side)?.piece_type;
+        let side = self.side();
+        let type_at = match self.state.board.get(pos) {
+            Some(i) => match i.filter_side(side) {
+                Some(i) => i,
+                None => return,
+            },
+            None => return,
+        }
+        .piece_type;
         let allies = self.curr_side_bitboards().combined();
         let enemies = self.side_bitboards(side.opposite()).combined();
         let all_pieces = allies | enemies;
         let must_block = self.side_attacked(side.opposite()).combined();
         let castle_rights = self.state.side_castle_rights(side);
         let all_square_data = &self.state.board;
-
-        Some(
-            match type_at {
-                Pawn => find_pawn(side, pos, allies, enemies, must_block, all_square_data),
-                Rook => find_rook(pos, allies, all_pieces, all_square_data, side.opposite()),
-                Knight => find_knight(pos, allies, all_square_data, side.opposite()),
-                Bishop => find_bishop(pos, allies, all_pieces, all_square_data, side.opposite()),
-                Queen => find_queen(pos, allies, all_pieces, all_square_data, side.opposite()),
-                King => find_king(
-                    pos,
-                    allies,
-                    self.side_attacked(self.side().opposite()).combined(),
-                    self.side_bitboards(side.opposite()).combined(),
-                    castle_rights,
-                    all_square_data,
-                    side.opposite(),
-                ),
-            }
-            .into(),
-        )
+        let pin_state = self.pin_state.choose_relevant(pos);
+        match type_at {
+            Pawn => find_pawn(
+                moves,
+                side,
+                pos,
+                allies,
+                enemies,
+                must_block,
+                all_square_data,
+            ),
+            Rook => find_rook(
+                moves,
+                pos,
+                allies,
+                all_pieces,
+                all_square_data,
+                pin_state,
+                check_paths,
+                side.opposite(),
+            ),
+            Knight => find_knight(moves, pos, allies, all_square_data, side.opposite()),
+            Bishop => find_bishop(
+                moves,
+                pos,
+                allies,
+                all_pieces,
+                all_square_data,
+                pin_state,
+                check_paths,
+                side.opposite(),
+            ),
+            Queen => find_queen(
+                moves,
+                pos,
+                allies,
+                all_pieces,
+                all_square_data,
+                pin_state,
+                check_paths,
+                side.opposite(),
+            ),
+            King => find_king(
+                moves,
+                pos,
+                allies,
+                self.side_attacked(self.side().opposite()).combined(),
+                self.side_bitboards(side.opposite()).combined(),
+                castle_rights,
+                all_square_data,
+                side.opposite(),
+            ),
+        };
     }
 
-    pub fn moves_iter(&self) -> MovesIter {
-        MovesIter::init(self)
-    }
+    pub fn find_all_moves(&self) -> (Vec<Move>, CheckPath) {
+        let squares = (0..64).map(|i| Position::from_index(i));
+        let mut moves = Vec::with_capacity(128);
+        let mut check_path = CheckPath::default();
 
-    pub fn make_move(mut self, mov: Move) -> Self {
-        // bitboard shenanigans
+        for pos in squares {
+            self.find_moves_at(&mut moves, pos, &mut check_path);
+        }
 
-        // Castle rights
-
-        // en passant square
-        self
+        (moves, check_path)
     }
 }
 
@@ -106,8 +154,8 @@ impl Default for SearchBoard {
             white_attacked: Bitboards {
                 state: [0xFF0000, 0, 0xA500, 0, 0, 0],
             },
-            white_pin_state: Bitboards { state: [0; 6] },
-            black_pin_state: Bitboards { state: [0; 6] },
+            pin_state: PinState::default(),
+            check_paths: CheckPath::default(),
         }
     }
 }
@@ -173,37 +221,29 @@ impl Bitboards {
     }
 }
 
+// TODO TODO TODO TODO INCREMENTAL MOVES (UNMAKE)
 #[derive(Clone)]
 pub struct BoardRepr {
-    board: [u64; 4],
+    board: [Option<Piece>; 64],
 }
 impl BoardRepr {
-    #[inline]
     pub fn get(&self, index: Position) -> Option<Piece> {
-        let index = *index as usize;
-        let quadrant = index / 16;
-        let index = index % 16;
-        let data: u8 = ((self.board[quadrant] >> index * 4) & 0b1111).to_le_bytes()[0];
-        if data == 0b1111 {
-            None
-        } else {
-            Some(unsafe { Piece::from_u8_unchecked(data) })
-        }
+        self[*index as usize]
     }
-    pub fn from_bitboards(white: Bitboards, black: Bitboards) -> Self {
-        let mut board = [0; 4];
 
-        for k in 0..4 {
-            for i in (0 + k * 16)..(16 + k * 16) {
-                let pos = Position::from_index(i);
-                let i = i % 16;
-                if let Some(piece) = white.get_role_at_position(pos) {
-                    board[k as usize] |= ((Side::White as u64) + (piece as u64)) << (i * 4u8)
-                } else if let Some(piece) = black.get_role_at_position(pos) {
-                    board[k as usize] |= ((Side::Black as u64) + (piece as u64)) << (i * 4u8)
-                } else {
-                    board[k as usize] |= 0b1111
-                }
+    pub fn from_bitboards(white: Bitboards, black: Bitboards) -> Self {
+        let mut board = [None; 64];
+
+        for (index, cell) in board.iter_mut().enumerate() {
+            let pos = Position::from_index(index as u8);
+            *cell = match (
+                white.get_role_at_position(pos),
+                black.get_role_at_position(pos),
+            ) {
+                (Some(i), None) => Some(Piece::white(i)),
+                (None, Some(i)) => Some(Piece::black(i)),
+                (None, None) => None,
+                (Some(_), Some(_)) => panic!("Bitboards not set up correctly"),
             }
         }
 
@@ -211,7 +251,13 @@ impl BoardRepr {
     }
 }
 
-#[derive(Clone)]
+impl Index<usize> for BoardRepr {
+    type Output = Option<Piece>;
+    fn index(&self, index: usize) -> &Self::Output {
+        &self.board[index]
+    }
+}
+
 pub struct BoardState {
     pub black: Bitboards,
     pub white: Bitboards,
