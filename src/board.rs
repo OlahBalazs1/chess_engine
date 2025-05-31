@@ -19,10 +19,8 @@ pub const KING: usize = 5;
 
 pub struct SearchBoard {
     pub state: BoardState,
-    // Attacked by black
-    black_attacked: u64,
-    // Attacked by white
-    white_attacked: u64,
+
+    pub attacked: u64,
 
     pub pin_state: PinState,
 
@@ -41,23 +39,12 @@ impl SearchBoard {
         self.state.side_bitboard(side)
     }
 
-    pub fn side_attacked(&self, side: Side) -> u64 {
-        match side {
-            Side::White => self.white_attacked,
-            Side::Black => self.black_attacked,
-        }
-    }
-
-    pub fn curr_side_attacked(&self) -> u64 {
-        self.side_attacked(self.state.side)
-    }
-
     pub fn get_piece_at(&self, pos: Position) -> Option<Piece> {
         self.state.piece_at_position(pos)
     }
 
     // TODO should probably be in search.rs
-    pub fn find_moves_at(&self, moves: &mut Vec<Move>, pos: Position) {
+    pub fn find_moves_at(&self, moves: &mut Vec<Move>, attack_bits: &mut u64, pos: Position) {
         use crate::search::*;
         use PieceType::*;
         let side = self.side();
@@ -70,24 +57,25 @@ impl SearchBoard {
         }
         .piece_type;
         match type_at {
-            Pawn => find_pawn(moves, pos, self),
-            Rook => find_rook(moves, pos, self),
-            Knight => find_knight(moves, pos, self),
-            Bishop => find_bishop(moves, pos, self),
-            Queen => find_queen(moves, pos, self),
-            King => find_king(moves, pos, self),
+            Pawn => find_pawn(moves, attack_bits, pos, self),
+            Rook => find_rook(moves, attack_bits, pos, self),
+            Knight => find_knight(moves, attack_bits, pos, self),
+            Bishop => find_bishop(moves, attack_bits, pos, self),
+            Queen => find_queen(moves, attack_bits, pos, self),
+            King => find_king(moves, attack_bits, pos, self),
         };
     }
 
-    pub fn find_all_moves(&self) -> Vec<Move> {
+    pub fn find_all_moves(&self) -> (Vec<Move>, u64) {
         let squares = (0..64).map(|i| Position::from_index(i));
         let mut moves = Vec::with_capacity(128);
+        let mut attacked_squares = 0;
 
         for pos in squares {
-            self.find_moves_at(&mut moves, pos);
+            self.find_moves_at(&mut moves, &mut attacked_squares, pos);
         }
 
-        moves
+        (moves, attacked_squares)
     }
 }
 
@@ -95,8 +83,7 @@ impl Default for SearchBoard {
     fn default() -> Self {
         Self {
             state: BoardState::default(),
-            black_attacked: 0xFF0000000000,
-            white_attacked: 0xFF0000,
+            attacked: 0x7effff0000000000,
             pin_state: PinState::default(),
             check_paths: CheckPath::default(),
         }
@@ -110,7 +97,6 @@ pub struct Bitboards {
 }
 impl Bitboards {
     pub fn get_containing_bitboard_mut(&mut self, pos: Position) -> Option<&mut u64> {
-        let mask = pos.as_mask();
         for i in self.state.iter_mut() {
             if *i & pos.as_mask() != 0 {
                 return Some(i);

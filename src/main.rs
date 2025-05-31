@@ -1,6 +1,7 @@
 use std::{hint::black_box, time::SystemTime};
 
 use board::SearchBoard;
+use magic_bitboards::print_bits;
 
 mod board;
 mod hashers;
@@ -19,7 +20,7 @@ fn main() {
         let board = SearchBoard::default();
         let all_moves = board.find_all_moves();
 
-        for mov in all_moves {
+        for mov in all_moves.0 {
             let _ = black_box(mov);
         }
         println!("{}", start.elapsed().unwrap().as_micros());

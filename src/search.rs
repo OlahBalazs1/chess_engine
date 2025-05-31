@@ -2,7 +2,7 @@ use rand::seq::IndexedRandom;
 
 use crate::board::{Bitboards, BoardRepr, BoardState};
 use crate::search_data::CheckPath;
-use crate::search_masks::{SingularData, KING_MASKS, KNIGHT_MASKS};
+use crate::search_masks::{SingularData, KING_MASKS, KNIGHT_MASKS, PAWN_TAKE_MASKS};
 use std::ops::{Deref, Index, Range};
 use std::sync::Arc;
 use std::{iter, pin, u64};
@@ -16,7 +16,7 @@ use crate::{
 };
 use PieceType::*;
 
-pub fn find_pawn(moves: &mut Vec<Move>, pos: Position, state: &SearchBoard) {
+pub fn find_pawn(moves: &mut Vec<Move>, attack_bits: &mut u64, pos: Position, state: &SearchBoard) {
     let side = state.side();
     let allies = state.side_bitboards(side).combined();
     let enemies = state.side_bitboards(side.opposite()).combined();
@@ -37,6 +37,7 @@ pub fn find_pawn(moves: &mut Vec<Move>, pos: Position, state: &SearchBoard) {
     if must_block == 0 {
         find_pawn_unrestricted(
             moves,
+            attack_bits,
             pos,
             side,
             allies,
@@ -47,6 +48,7 @@ pub fn find_pawn(moves: &mut Vec<Move>, pos: Position, state: &SearchBoard) {
     } else {
         find_pawn_restricted(
             moves,
+            attack_bits,
             pos,
             side,
             allies,
@@ -59,6 +61,7 @@ pub fn find_pawn(moves: &mut Vec<Move>, pos: Position, state: &SearchBoard) {
 }
 fn find_pawn_unrestricted(
     moves: &mut Vec<Move>,
+    attack_bits: &mut u64,
     pos: Position,
     side: Side,
     allies: u64,
@@ -71,16 +74,21 @@ fn find_pawn_unrestricted(
         Side::White => 1,
         Side::Black => -1,
     };
-    for i in [Offset::new(-1, yo), Offset::new(1, yo)]
-        .iter()
-        .filter_map(|i| pos.with_offset(*i))
-    {
-        if enemies & i.as_mask() != 0 {
-            gen_pawn_moves(moves, pos, i, all_square_data.get(pos).map(|i| i.role()));
-        } else if ep_square.is_some_and(|ep| ep == i) {
-            moves.push(Move::new(pos, i, MoveType::EnPassant, Some(Pawn)));
+    PAWN_TAKE_MASKS.with(|m| {
+        let data = &m[*pos as usize];
+        *attack_bits |= if yo == 1 {
+            data.sum << 8
+        } else {
+            data.sum >> 8
+        };
+        for i in data.positions.iter().filter_map(|i| pos.with_y(**i)) {
+            if enemies & i.as_mask() != 0 {
+                gen_pawn_moves(moves, pos, i, all_square_data.get(pos).map(|i| i.role()));
+            } else if ep_square.is_some_and(|ep| ep == i) {
+                moves.push(Move::new(pos, i, MoveType::EnPassant, Some(Pawn)));
+            }
         }
-    }
+    });
 
     let mut moves_iter = [Offset::new(0, yo), Offset::new(0, yo * 2)]
         .into_iter()
@@ -121,6 +129,7 @@ fn find_pawn_unrestricted(
 
 fn find_pawn_restricted(
     moves: &mut Vec<Move>,
+    attack_bits: &mut u64,
     pos: Position,
     side: Side,
     allies: u64,
@@ -135,16 +144,21 @@ fn find_pawn_restricted(
         Side::Black => -1,
     };
 
-    for i in [Offset::new(-1, yo), Offset::new(1, yo)]
-        .iter()
-        .filter_map(|i| pos.with_offset(*i))
-    {
-        if must_block & i.as_mask() != 0 && enemies & i.as_mask() != 0 {
-            gen_pawn_moves(moves, pos, i, all_square_data.get(pos).map(|i| i.role()));
-        } else if ep_square.is_some_and(|ep| ep == i) {
-            moves.push(Move::new(pos, i, MoveType::EnPassant, Some(Pawn)));
+    PAWN_TAKE_MASKS.with(|m| {
+        let data = &m[*pos as usize];
+        *attack_bits |= if yo == 1 {
+            data.sum << 8
+        } else {
+            data.sum >> 8
+        };
+        for i in data.positions.iter().filter_map(|i| pos.with_y(**i)) {
+            if must_block & i.as_mask() != 0 && enemies & i.as_mask() != 0 {
+                gen_pawn_moves(moves, pos, i, all_square_data.get(pos).map(|i| i.role()));
+            } else if ep_square.is_some_and(|ep| ep == i) {
+                moves.push(Move::new(pos, i, MoveType::EnPassant, Some(Pawn)));
+            }
         }
-    }
+    });
 
     let mut moves_iter = [Offset::new(0, yo), Offset::new(0, yo * 2)]
         .into_iter()
@@ -199,7 +213,12 @@ fn gen_pawn_moves(moves: &mut Vec<Move>, from: Position, to: Position, take: Opt
     }
 }
 
-pub fn find_knight(moves: &mut Vec<Move>, pos: Position, state: &SearchBoard) {
+pub fn find_knight(
+    moves: &mut Vec<Move>,
+    attack_bits: &mut u64,
+    pos: Position,
+    state: &SearchBoard,
+) {
     let side = state.side();
     let allies = state.side_bitboards(side).combined();
     let all_square_data = &state.state.board;
@@ -210,6 +229,7 @@ pub fn find_knight(moves: &mut Vec<Move>, pos: Position, state: &SearchBoard) {
 
     match state.check_paths {
         CheckPath::None => KNIGHT_MASKS.with(|m| {
+            *attack_bits |= m[*pos as usize].sum;
             moves.extend({
                 m[*pos as usize]
                     .positions
@@ -230,6 +250,7 @@ pub fn find_knight(moves: &mut Vec<Move>, pos: Position, state: &SearchBoard) {
         }),
 
         CheckPath::Blockable(must_block) => KNIGHT_MASKS.with(|m| {
+            *attack_bits |= m[*pos as usize].sum;
             moves.extend({
                 m[*pos as usize]
                     .positions
@@ -253,10 +274,10 @@ pub fn find_knight(moves: &mut Vec<Move>, pos: Position, state: &SearchBoard) {
     }
 }
 
-pub fn find_king(moves: &mut Vec<Move>, pos: Position, state: &SearchBoard) {
+pub fn find_king(moves: &mut Vec<Move>, attack_bits: &mut u64, pos: Position, state: &SearchBoard) {
     let side = state.side();
     let allies = state.side_bitboards(side).combined();
-    let attacked_squares = state.side_attacked(side);
+    let attacked_squares = state.attacked;
     let enemies = state.side_bitboards(side.opposite()).combined();
     let castle_rights = state.state.side_castle_rights(side);
     let all_square_data = &state.state.board;
@@ -264,6 +285,7 @@ pub fn find_king(moves: &mut Vec<Move>, pos: Position, state: &SearchBoard) {
 
     // normal moving
     KING_MASKS.with(|m| {
+        *attack_bits |= m[*pos as usize].sum;
         moves.extend(
             m[*pos as usize]
                 .positions
@@ -310,12 +332,13 @@ pub fn find_king(moves: &mut Vec<Move>, pos: Position, state: &SearchBoard) {
     }
 }
 
-pub fn find_rook(moves: &mut Vec<Move>, pos: Position, state: &SearchBoard) {
-    MAGIC_MOVER.with(|m| find_rook_with_magic(moves, pos, state, m))
+pub fn find_rook(moves: &mut Vec<Move>, attack_bits: &mut u64, pos: Position, state: &SearchBoard) {
+    MAGIC_MOVER.with(|m| find_rook_with_magic(moves, attack_bits, pos, state, m))
 }
 
 pub fn find_rook_with_magic(
     moves: &mut Vec<Move>,
+    attack_bits: &mut u64,
     pos: Position,
     state: &SearchBoard,
     magic_mover: &MagicMover,
@@ -336,9 +359,10 @@ pub fn find_rook_with_magic(
         (1.., 0) => pin_state,
         _ => return,
     };
+    let data = magic_mover.get_rook(pos, all_pieces);
+    *attack_bits |= data.bitboard;
 
     if must_block == 0 {
-        let data = magic_mover.get_rook(pos, all_pieces);
         let normals = data
             .normal
             .iter()
@@ -361,7 +385,6 @@ pub fn find_rook_with_magic(
 
         moves.extend(normals.chain(takes));
     } else {
-        let data = magic_mover.get_rook(pos, all_pieces);
         let normals = data
             .normal
             .iter()
@@ -386,12 +409,18 @@ pub fn find_rook_with_magic(
     }
 }
 
-pub fn find_bishop(moves: &mut Vec<Move>, pos: Position, state: &SearchBoard) {
-    MAGIC_MOVER.with(|m| find_bishop_with_magic(moves, pos, state, m))
+pub fn find_bishop(
+    moves: &mut Vec<Move>,
+    attack_bits: &mut u64,
+    pos: Position,
+    state: &SearchBoard,
+) {
+    MAGIC_MOVER.with(|m| find_bishop_with_magic(moves, attack_bits, pos, state, m))
 }
 
 pub fn find_bishop_with_magic(
     moves: &mut Vec<Move>,
+    attack_bits: &mut u64,
     pos: Position,
     state: &SearchBoard,
     magic_mover: &MagicMover,
@@ -413,8 +442,10 @@ pub fn find_bishop_with_magic(
         (1.., 0) => pin_state,
         _ => return,
     };
+    let data = magic_mover.get_bishop(pos, all_pieces);
+    *attack_bits |= data.bitboard;
+
     if must_block == 0 {
-        let data = magic_mover.get_bishop(pos, all_pieces);
         let normals = data
             .normal
             .iter()
@@ -437,7 +468,6 @@ pub fn find_bishop_with_magic(
 
         moves.extend(normals.chain(takes));
     } else {
-        let data = magic_mover.get_bishop(pos, all_pieces);
         let normals = data
             .normal
             .iter()
@@ -462,12 +492,18 @@ pub fn find_bishop_with_magic(
     }
 }
 
-pub fn find_queen(moves: &mut Vec<Move>, pos: Position, state: &SearchBoard) {
-    MAGIC_MOVER.with(|m| find_queen_with_magic(moves, pos, state, m))
+pub fn find_queen(
+    moves: &mut Vec<Move>,
+    attack_bits: &mut u64,
+    pos: Position,
+    state: &SearchBoard,
+) {
+    MAGIC_MOVER.with(|m| find_queen_with_magic(moves, attack_bits, pos, state, m))
 }
 
 pub fn find_queen_with_magic(
     moves: &mut Vec<Move>,
+    attack_bits: &mut u64,
     pos: Position,
     state: &SearchBoard,
     magic_mover: &MagicMover,
@@ -491,6 +527,7 @@ pub fn find_queen_with_magic(
     if must_block == 0 {
         queen_unrestricted(
             moves,
+            attack_bits,
             pos,
             allies,
             all_pieces,
@@ -501,6 +538,7 @@ pub fn find_queen_with_magic(
     } else {
         queen_restricted(
             moves,
+            attack_bits,
             pos,
             allies,
             all_pieces,
@@ -514,6 +552,7 @@ pub fn find_queen_with_magic(
 
 fn queen_unrestricted(
     moves: &mut Vec<Move>,
+    attack_bits: &mut u64,
     pos: Position,
     allies: u64,
     all_pieces: u64,
@@ -522,6 +561,7 @@ fn queen_unrestricted(
     side: Side,
 ) {
     let rook_data = magic_mover.get_rook(pos, all_pieces);
+    *attack_bits |= rook_data.bitboard;
     let normals = rook_data
         .normal
         .iter()
@@ -545,6 +585,7 @@ fn queen_unrestricted(
     moves.extend(normals.chain(takes));
 
     let bishop_data = magic_mover.get_bishop(pos, all_pieces);
+    *attack_bits |= bishop_data.bitboard;
     let normals = bishop_data
         .normal
         .iter()
@@ -571,6 +612,7 @@ fn queen_unrestricted(
 
 fn queen_restricted(
     moves: &mut Vec<Move>,
+    attack_bits: &mut u64,
     pos: Position,
     allies: u64,
     all_pieces: u64,
@@ -580,6 +622,7 @@ fn queen_restricted(
     side: Side,
 ) {
     let rook_data = magic_mover.get_rook(pos, all_pieces);
+    *attack_bits |= rook_data.bitboard;
     let normals = rook_data
         .normal
         .iter()
@@ -603,6 +646,8 @@ fn queen_restricted(
         });
 
     let bishop_data = magic_mover.get_bishop(pos, all_pieces);
+    *attack_bits |= bishop_data.bitboard;
+
     let normals = normals.chain(
         bishop_data
             .normal
