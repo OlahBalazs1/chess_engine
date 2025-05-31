@@ -69,8 +69,10 @@ impl PartialEq for MagicData {
     }
 }
 
-pub static MAGIC_MOVER: LazyLock<MagicMover> =
-    LazyLock::new(|| MagicMover::init(ROOK_MAGIC_HASHERS, BISHOP_MAGIC_HASHERS));
+thread_local! {
+pub static MAGIC_MOVER: MagicMover =
+    MagicMover::init(ROOK_MAGIC_HASHERS, BISHOP_MAGIC_HASHERS);
+}
 
 pub struct MagicMover {
     rook_magics: Box<[SquareMagic]>,

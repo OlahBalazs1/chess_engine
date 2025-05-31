@@ -19,11 +19,15 @@ mod search_masks;
 mod zobrist;
 
 fn main() {
-    for _ in 0..1000 {
+    for _ in 0..3 {
+        let start = SystemTime::now();
         let board = SearchBoard::default();
-        let (all_moves, check_path) = board.find_all_moves();
+        let all_moves = board.find_all_moves();
+
         for mov in all_moves {
             let _ = black_box(mov);
         }
+        println!("{}", start.elapsed().unwrap().as_micros());
+        println!("------")
     }
 }

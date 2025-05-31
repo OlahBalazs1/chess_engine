@@ -193,40 +193,44 @@ pub fn find_knight(moves: &mut Vec<Move>, pos: Position, state: &SearchBoard) {
     }
 
     match state.check_paths {
-        CheckPath::None => moves.extend({
-            KNIGHT_MASKS[*pos as usize]
-                .positions
-                .iter()
-                .copied()
-                .filter(|p| allies & p.as_mask() == 0)
-                .map(|i| {
-                    Move::new(
-                        pos,
-                        i,
-                        MoveType::Normal(PieceType::Knight),
-                        all_square_data
-                            .get(pos)
-                            .and_then(|i| i.filter_side(side).map(|i| i.role())),
-                    )
-                })
+        CheckPath::None => KNIGHT_MASKS.with(|m| {
+            moves.extend({
+                m[*pos as usize]
+                    .positions
+                    .iter()
+                    .copied()
+                    .filter(|p| allies & p.as_mask() == 0)
+                    .map(|i| {
+                        Move::new(
+                            pos,
+                            i,
+                            MoveType::Normal(PieceType::Knight),
+                            all_square_data
+                                .get(i)
+                                .and_then(|i| i.filter_side(side).map(|i| i.role())),
+                        )
+                    })
+            })
         }),
 
-        CheckPath::Blockable(must_block) => moves.extend({
-            KNIGHT_MASKS[*pos as usize]
-                .positions
-                .iter()
-                .copied()
-                .filter(|p| allies & p.as_mask() == 0 && must_block & p.as_mask() != 0)
-                .map(|i| {
-                    Move::new(
-                        pos,
-                        i,
-                        MoveType::Normal(PieceType::Knight),
-                        all_square_data
-                            .get(pos)
-                            .and_then(|i| i.filter_side(side).map(|i| i.role())),
-                    )
-                })
+        CheckPath::Blockable(must_block) => KNIGHT_MASKS.with(|m| {
+            moves.extend({
+                m[*pos as usize]
+                    .positions
+                    .iter()
+                    .copied()
+                    .filter(|p| allies & p.as_mask() == 0 && must_block & p.as_mask() != 0)
+                    .map(|i| {
+                        Move::new(
+                            pos,
+                            i,
+                            MoveType::Normal(PieceType::Knight),
+                            all_square_data
+                                .get(pos)
+                                .and_then(|i| i.filter_side(side).map(|i| i.role())),
+                        )
+                    })
+            })
         }),
 
         CheckPath::Multiple => return,
@@ -243,23 +247,25 @@ pub fn find_king(moves: &mut Vec<Move>, pos: Position, state: &SearchBoard) {
     let must_avoid = allies | attacked_squares;
 
     // normal moving
-    moves.extend(
-        KING_MASKS[*pos as usize]
-            .positions
-            .iter()
-            .copied()
-            .filter(|i| must_avoid & i.as_mask() == 0)
-            .map(|i| {
-                Move::new(
-                    pos,
-                    i,
-                    MoveType::Normal(PieceType::King),
-                    all_square_data
-                        .get(pos)
-                        .and_then(|i| i.filter_side(side).map(|i| i.role())),
-                )
-            }),
-    );
+    KING_MASKS.with(|m| {
+        moves.extend(
+            m[*pos as usize]
+                .positions
+                .iter()
+                .copied()
+                .filter(|i| must_avoid & i.as_mask() == 0)
+                .map(|i| {
+                    Move::new(
+                        pos,
+                        i,
+                        MoveType::Normal(PieceType::King),
+                        all_square_data
+                            .get(pos)
+                            .and_then(|i| i.filter_side(side).map(|i| i.role())),
+                    )
+                }),
+        )
+    });
 
     match state.check_paths {
         CheckPath::None => {
@@ -289,7 +295,7 @@ pub fn find_king(moves: &mut Vec<Move>, pos: Position, state: &SearchBoard) {
 }
 
 pub fn find_rook(moves: &mut Vec<Move>, pos: Position, state: &SearchBoard) {
-    find_rook_with_magic(moves, pos, state, &*MAGIC_MOVER)
+    MAGIC_MOVER.with(|m| find_rook_with_magic(moves, pos, state, m))
 }
 
 pub fn find_rook_with_magic(
@@ -365,7 +371,7 @@ pub fn find_rook_with_magic(
 }
 
 pub fn find_bishop(moves: &mut Vec<Move>, pos: Position, state: &SearchBoard) {
-    find_bishop_with_magic(moves, pos, state, &*MAGIC_MOVER)
+    MAGIC_MOVER.with(|m| find_bishop_with_magic(moves, pos, state, m))
 }
 
 pub fn find_bishop_with_magic(
@@ -441,7 +447,7 @@ pub fn find_bishop_with_magic(
 }
 
 pub fn find_queen(moves: &mut Vec<Move>, pos: Position, state: &SearchBoard) {
-    find_queen_with_magic(moves, pos, state, &*MAGIC_MOVER)
+    MAGIC_MOVER.with(|m| find_queen_with_magic(moves, pos, state, m))
 }
 
 pub fn find_queen_with_magic(

@@ -57,7 +57,7 @@ impl SearchBoard {
     }
 
     // TODO should probably be in search.rs
-    pub fn find_moves_at(&self, moves: &mut Vec<Move>, pos: Position, check_paths: &mut CheckPath) {
+    pub fn find_moves_at(&self, moves: &mut Vec<Move>, pos: Position) {
         use crate::search::*;
         use PieceType::*;
         let side = self.side();
@@ -79,16 +79,15 @@ impl SearchBoard {
         };
     }
 
-    pub fn find_all_moves(&self) -> (Vec<Move>, CheckPath) {
+    pub fn find_all_moves(&self) -> Vec<Move> {
         let squares = (0..64).map(|i| Position::from_index(i));
         let mut moves = Vec::with_capacity(128);
-        let mut check_path = CheckPath::default();
 
         for pos in squares {
-            self.find_moves_at(&mut moves, pos, &mut check_path);
+            self.find_moves_at(&mut moves, pos);
         }
 
-        (moves, check_path)
+        moves
     }
 }
 
