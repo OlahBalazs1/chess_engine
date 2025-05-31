@@ -4,51 +4,63 @@ use crate::{
     piece::PieceType,
     position::{Offset, Position},
 };
+use std::fmt::Debug;
 use std::sync::Arc;
 use std::{iter, sync::LazyLock};
 
 struct MagicDataBuilder {
-    normal: Option<Vec<Position>>,
-    takes: Option<Vec<Position>>,
+    normal: Vec<Position>,
+    takes: Vec<Position>,
+    ends: Vec<Position>,
     bitboard: u64,
 }
 impl MagicDataBuilder {
     fn new() -> Self {
         Self {
-            normal: None,
-            takes: None,
+            normal: Vec::with_capacity(16),
+            takes: Vec::with_capacity(4),
+            ends: Vec::with_capacity(4),
             bitboard: 0,
         }
     }
     fn add_normal(&mut self, data: Position) {
-        match self.normal.as_mut() {
-            Some(i) => i.push(data),
-            None => self.normal = Some(vec![data]),
-        }
-        self.bitboard |= data.as_mask()
-    }
-    fn add_take(&mut self, data: Position) {
-        match self.takes.as_mut() {
-            Some(i) => i.push(data),
-            None => self.takes = Some(vec![data]),
-        }
+        self.normal.push(data);
         self.bitboard |= data.as_mask()
     }
 
-    fn finalize(mut self) -> MagicData {
+    fn add_take(&mut self, data: Position) {
+        self.takes.push(data);
+        self.bitboard |= data.as_mask()
+    }
+
+    fn add_end(&mut self, data: Position) {
+        self.ends.push(data);
+        self.bitboard |= data.as_mask()
+    }
+
+    fn finalize(self) -> MagicData {
         MagicData {
-            normal: self.normal.take().unwrap_or(vec![]).into_boxed_slice(),
-            takes: self.takes.take().unwrap_or(vec![]).into_boxed_slice(),
+            normal: self.normal.into_boxed_slice(),
+            takes: self.takes.into_boxed_slice(),
+            ends: self.ends.into_boxed_slice(),
             bitboard: self.bitboard,
         }
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct MagicData {
     pub normal: Box<[Position]>,
     pub takes: Box<[Position]>,
+    pub ends: Box<[Position]>,
     pub bitboard: u64,
+}
+use std::iter::{Chain, Copied};
+use std::slice::Iter;
+impl MagicData {
+    pub fn possible_takes(&self) -> Chain<Copied<Iter<'_, Position>>, Copied<Iter<'_, Position>>> {
+        self.takes.iter().copied().chain(self.ends.iter().copied())
+    }
 }
 
 impl PartialEq for MagicData {
@@ -95,7 +107,7 @@ impl MagicMover {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct MagicHasher {
     pub premask: u64,
     pub magic: u64,
@@ -118,6 +130,7 @@ impl MagicHasher {
     }
 }
 
+#[derive(Debug)]
 struct SquareMagic {
     moves: Box<[Option<MagicData>]>,
     hasher: MagicHasher,
@@ -148,11 +161,11 @@ impl SquareMagic {
             })
             .collect();
         let mut magic_moves = vec![None; highest + 1];
-        for (blocker, possible_move) in iter::zip(all_hashed, possible_moves) {
-            if let Some(collided) = &magic_moves[blocker] {
+        for (blocker, possible_move) in iter::zip(blocker_configs, possible_moves) {
+            if let Some(collided) = &magic_moves[hasher.hash(blocker) as usize] {
                 assert!(*collided == possible_move, "Magic number is not magic")
             } else {
-                magic_moves[blocker] = Some(possible_move)
+                magic_moves[hasher.hash(blocker) as usize] = Some(possible_move)
             }
         }
 
@@ -185,12 +198,13 @@ impl SquareMagic {
                 )
             })
             .collect();
+
         let mut magic_moves = vec![None; highest + 1];
-        for (blocker, possible_move) in iter::zip(all_hashed, possible_moves) {
-            if let Some(collided) = &magic_moves[blocker] {
+        for (blocker, possible_move) in iter::zip(blocker_configs, possible_moves) {
+            if let Some(collided) = &magic_moves[hasher.hash(blocker) as usize] {
                 assert!(*collided == possible_move, "Magic number is not magic")
             } else {
-                magic_moves[blocker] = Some(possible_move)
+                magic_moves[hasher.hash(blocker) as usize] = Some(possible_move)
             }
         }
 
@@ -218,7 +232,7 @@ fn slide_blocker_possible_moves<const N: usize>(
     let mut moves = MagicDataBuilder::new();
 
     let mut directions = [true; N];
-    for i in 1..7 {
+    for i in 1..6 {
         let directions_clone = directions.clone();
 
         let offsets = offsets
@@ -240,6 +254,20 @@ fn slide_blocker_possible_moves<const N: usize>(
             }
         }
     }
+
+    // ends
+    let offsets = offsets
+        .iter()
+        .enumerate()
+        .filter(|(index, _)| directions[*index])
+        .map(|(_, offset)| offset.mul(7).unwrap());
+
+    for offset in offsets {
+        if let Some(position) = start_pos.with_offset(offset) {
+            moves.add_end(position);
+        }
+    }
+
     moves.finalize()
 }
 
@@ -284,7 +312,9 @@ fn generate_bishop_blockers(pos: Position) -> Box<[u64]> {
         let bitboard = {
             let mut bitboard = 0u64;
             for (index, i) in indices.iter().enumerate() {
-                bitboard |= (combination & (1 << index) >> index) << i;
+                if combination & (1 << index) != 0 {
+                    bitboard |= 1 << i
+                }
             }
             bitboard
         };

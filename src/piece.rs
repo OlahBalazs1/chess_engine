@@ -101,6 +101,20 @@ impl Side {
             Side::Black => Side::White,
         }
     }
+
+    pub const fn home_y(self) -> u8 {
+        match self {
+            Side::White => 0,
+            Side::Black => 7,
+        }
+    }
+
+    pub const fn pers_y(self, rank: u8) -> u8 {
+        match self {
+            Side::White => rank,
+            Side::Black => 7 - rank,
+        }
+    }
 }
 
 #[inline]

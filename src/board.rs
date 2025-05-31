@@ -20,14 +20,13 @@ pub const KING: usize = 5;
 pub struct SearchBoard {
     pub state: BoardState,
     // Attacked by black
-    black_attacked: Bitboards,
+    black_attacked: u64,
     // Attacked by white
-    white_attacked: Bitboards,
+    white_attacked: u64,
 
     pub pin_state: PinState,
 
-    // Not worth checking if 2 paths exist (-> 2 different pieces would need to be captured)
-    check_paths: CheckPath,
+    pub check_paths: CheckPath,
 }
 
 impl SearchBoard {
@@ -42,14 +41,14 @@ impl SearchBoard {
         self.state.side_bitboard(side)
     }
 
-    pub fn side_attacked(&self, side: Side) -> &Bitboards {
+    pub fn side_attacked(&self, side: Side) -> u64 {
         match side {
-            Side::White => &self.white_attacked,
-            Side::Black => &self.black_attacked,
+            Side::White => self.white_attacked,
+            Side::Black => self.black_attacked,
         }
     }
 
-    pub fn curr_side_attacked(&self) -> &Bitboards {
+    pub fn curr_side_attacked(&self) -> u64 {
         self.side_attacked(self.state.side)
     }
 
@@ -70,64 +69,13 @@ impl SearchBoard {
             None => return,
         }
         .piece_type;
-        let allies = self.curr_side_bitboards().combined();
-        let enemies = self.side_bitboards(side.opposite()).combined();
-        let all_pieces = allies | enemies;
-        let must_block = self.side_attacked(side.opposite()).combined();
-        let castle_rights = self.state.side_castle_rights(side);
-        let all_square_data = &self.state.board;
-        let pin_state = self.pin_state.choose_relevant(pos);
         match type_at {
-            Pawn => find_pawn(
-                moves,
-                side,
-                pos,
-                allies,
-                enemies,
-                must_block,
-                all_square_data,
-            ),
-            Rook => find_rook(
-                moves,
-                pos,
-                allies,
-                all_pieces,
-                all_square_data,
-                pin_state,
-                check_paths,
-                side.opposite(),
-            ),
-            Knight => find_knight(moves, pos, allies, all_square_data, side.opposite()),
-            Bishop => find_bishop(
-                moves,
-                pos,
-                allies,
-                all_pieces,
-                all_square_data,
-                pin_state,
-                check_paths,
-                side.opposite(),
-            ),
-            Queen => find_queen(
-                moves,
-                pos,
-                allies,
-                all_pieces,
-                all_square_data,
-                pin_state,
-                check_paths,
-                side.opposite(),
-            ),
-            King => find_king(
-                moves,
-                pos,
-                allies,
-                self.side_attacked(self.side().opposite()).combined(),
-                self.side_bitboards(side.opposite()).combined(),
-                castle_rights,
-                all_square_data,
-                side.opposite(),
-            ),
+            Pawn => find_pawn(moves, pos, self),
+            Rook => find_rook(moves, pos, self),
+            Knight => find_knight(moves, pos, self),
+            Bishop => find_bishop(moves, pos, self),
+            Queen => find_queen(moves, pos, self),
+            King => find_king(moves, pos, self),
         };
     }
 
@@ -148,12 +96,8 @@ impl Default for SearchBoard {
     fn default() -> Self {
         Self {
             state: BoardState::default(),
-            black_attacked: Bitboards {
-                state: [0xFF0000000000, 0, 0xA5000000000000, 0, 0, 0],
-            },
-            white_attacked: Bitboards {
-                state: [0xFF0000, 0, 0xA500, 0, 0, 0],
-            },
+            black_attacked: 0xFF0000000000,
+            white_attacked: 0xFF0000,
             pin_state: PinState::default(),
             check_paths: CheckPath::default(),
         }

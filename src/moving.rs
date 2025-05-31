@@ -7,7 +7,9 @@ use std::fmt::Debug;
 pub enum MoveType {
     Normal(PieceType),
     Promotion(PieceType),
-    Castle { rook_pos_after: Position },
+    LongCastle,
+    ShortCastle,
+    EnPassant,
 }
 #[derive(Clone)]
 pub struct Unmove {
@@ -42,45 +44,6 @@ impl Move {
         }
     }
 
-    pub fn new_with_checkpath_singular(
-        from: Position,
-        to: Position,
-        move_type: MoveType,
-        take: Option<PieceType>,
-        checkpath: &mut CheckPath,
-    ) -> Self {
-        match take {
-            Some(PieceType::King) => checkpath.set_singular(from),
-            _ => {}
-        };
-        Self::new(from, to, move_type, take)
-    }
-    pub fn new_with_checkpath_diagonal(
-        from: Position,
-        to: Position,
-        move_type: MoveType,
-        take: Option<PieceType>,
-        checkpath: &mut CheckPath,
-    ) -> Self {
-        match take {
-            Some(PieceType::King) => checkpath.set_diagonal(from, to),
-            _ => {}
-        };
-        Self::new(from, to, move_type, take)
-    }
-    pub fn new_with_checkpath_parallel(
-        from: Position,
-        to: Position,
-        move_type: MoveType,
-        take: Option<PieceType>,
-        checkpath: &mut CheckPath,
-    ) -> Self {
-        match take {
-            Some(PieceType::King) => checkpath.set_parallel(from, to),
-            _ => {}
-        };
-        Self::new(from, to, move_type, take)
-    }
     pub fn to(&self) -> Position {
         self.to
     }
@@ -91,15 +54,16 @@ impl Move {
         match self.move_type {
             MoveType::Normal(role) => role,
             MoveType::Promotion(_) => PieceType::Pawn,
-            MoveType::Castle { .. } => PieceType::King,
+            MoveType::LongCastle => PieceType::King,
+            MoveType::ShortCastle => PieceType::King,
+            MoveType::EnPassant => PieceType::Pawn,
         }
     }
 
     pub fn promote_to(&self) -> Option<PieceType> {
         match self.move_type {
-            MoveType::Normal(_) => None,
             MoveType::Promotion(promote) => Some(promote),
-            MoveType::Castle { .. } => None,
+            _ => None,
         }
     }
     pub fn is_pawn_starter(&self) -> bool {
@@ -132,21 +96,15 @@ impl Debug for Move {
                 PieceType::Queen => ("", "=Q"),
                 PieceType::King => ("", "=K"),
             },
-            MoveType::Castle {
-                rook_pos_after: pos,
-            } => match pos.snap_to_side().x() {
-                0 => {
-                    write!(f, "O-O-O")?;
-                    return Ok(());
-                }
-                7 => {
-                    write!(f, "O-O")?;
-                    return Ok(());
-                }
-                _ => {
-                    unreachable!()
-                }
-            },
+            MoveType::ShortCastle => {
+                write!(f, "O-O")?;
+                return Ok(());
+            }
+            MoveType::LongCastle => {
+                write!(f, "O-O")?;
+                return Ok(());
+            }
+            MoveType::EnPassant => ("", ""),
         };
         let take = match self.take {
             Some(i) => match i {
