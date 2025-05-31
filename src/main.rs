@@ -1,11 +1,6 @@
-use std::{
-    hint::black_box,
-    io::{stdin, BufRead},
-    time::SystemTime,
-};
+use std::{hint::black_box, time::SystemTime};
 
 use board::SearchBoard;
-use piece::Piece;
 
 mod board;
 mod hashers;

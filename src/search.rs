@@ -35,7 +35,15 @@ pub fn find_pawn(moves: &mut Vec<Move>, pos: Position, state: &SearchBoard) {
     };
 
     if must_block == 0 {
-        find_pawn_unrestricted(moves, pos, side, allies, enemies, all_square_data);
+        find_pawn_unrestricted(
+            moves,
+            pos,
+            side,
+            allies,
+            enemies,
+            all_square_data,
+            state.state.en_passant_square,
+        );
     } else {
         find_pawn_restricted(
             moves,
@@ -45,6 +53,7 @@ pub fn find_pawn(moves: &mut Vec<Move>, pos: Position, state: &SearchBoard) {
             enemies,
             all_square_data,
             must_block,
+            state.state.en_passant_square,
         );
     }
 }
@@ -55,19 +64,22 @@ fn find_pawn_unrestricted(
     allies: u64,
     enemies: u64,
     all_square_data: &BoardRepr,
+    ep_square: Option<Position>,
 ) {
     // takes
     let yo = match side {
         Side::White => 1,
         Side::Black => -1,
     };
-
     for i in [Offset::new(-1, yo), Offset::new(1, yo)]
         .iter()
         .filter_map(|i| pos.with_offset(*i))
-        .filter(|i| enemies & i.as_mask() != 0)
     {
-        gen_pawn_moves(moves, pos, i, all_square_data.get(pos).map(|i| i.role()));
+        if enemies & i.as_mask() != 0 {
+            gen_pawn_moves(moves, pos, i, all_square_data.get(pos).map(|i| i.role()));
+        } else if ep_square.is_some_and(|ep| ep == i) {
+            moves.push(Move::new(pos, i, MoveType::EnPassant, Some(Pawn)));
+        }
     }
 
     let mut moves_iter = [Offset::new(0, yo), Offset::new(0, yo * 2)]
@@ -115,6 +127,7 @@ fn find_pawn_restricted(
     enemies: u64,
     all_square_data: &BoardRepr,
     must_block: u64,
+    ep_square: Option<Position>,
 ) {
     // takes
     let yo = match side {
@@ -125,9 +138,12 @@ fn find_pawn_restricted(
     for i in [Offset::new(-1, yo), Offset::new(1, yo)]
         .iter()
         .filter_map(|i| pos.with_offset(*i))
-        .filter(|i| must_block & i.as_mask() != 0 && enemies & i.as_mask() != 0)
     {
-        gen_pawn_moves(moves, pos, i, all_square_data.get(pos).map(|i| i.role()));
+        if must_block & i.as_mask() != 0 && enemies & i.as_mask() != 0 {
+            gen_pawn_moves(moves, pos, i, all_square_data.get(pos).map(|i| i.role()));
+        } else if ep_square.is_some_and(|ep| ep == i) {
+            moves.push(Move::new(pos, i, MoveType::EnPassant, Some(Pawn)));
+        }
     }
 
     let mut moves_iter = [Offset::new(0, yo), Offset::new(0, yo * 2)]
