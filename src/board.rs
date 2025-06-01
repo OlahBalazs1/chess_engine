@@ -3,6 +3,7 @@ use std::hash::Hash;
 use std::ops::Index;
 use std::rc::{Rc, Weak};
 
+use crate::magic_bitboards::print_bits;
 use crate::moving::{Castle, Move, MoveType, Unmove};
 use crate::piece::{Piece, PieceType, Side};
 use crate::position::{self, Position};
@@ -101,14 +102,11 @@ impl SearchBoard {
     pub fn make<'a>(&mut self, mov: &'a Move, attacked_squares: u64) -> Unmove<'a> {
         let side = self.state.side;
 
-        let black_castle_buf = self.state.black_castling.clone();
-        let white_castle_buf = self.state.white_castling.clone();
-
         let unmake = Unmove {
             mov,
             en_passant_square: self.state.en_passant_square.clone(),
-            white_castling: white_castle_buf,
-            black_castling: black_castle_buf,
+            white_castling: self.state.black_castling.clone(),
+            black_castling: self.state.white_castling.clone(),
             zobrist: self.state.zobrist,
             attacked_squares: self.attacked,
             halfmove_clock: self.halfmove_clock,
@@ -180,6 +178,8 @@ impl SearchBoard {
         if increment_halfmove {
             self.halfmove_clock += 1;
         }
+        self.pin_state = PinState::find(&self.state, Position::new(4, 0));
+        self.check_paths = CheckPath::find(&self.state, Position::new(4, 0), side.opposite());
 
         self.state
             .zobrist
@@ -187,7 +187,6 @@ impl SearchBoard {
 
         self.state.zobrist.switch_side();
 
-        // probably has to be dealt with in unmake
         if mov.piece_type() == PieceType::King {
             if self.state.side_castle_rights(side).0 {
                 side_castle_rights!(side, self).0 = false;
@@ -206,19 +205,14 @@ impl SearchBoard {
     }
 
     pub fn unmake(&mut self, unmove: Unmove) {
+        self.state.side = self.state.side.opposite();
         let side = self.state.side;
 
         let mut updated_ep = None;
         let mov = unmove.mov;
 
-        self.state
-            .zobrist
-            .update(mov.piece_type().with_side(side), mov.from());
-        self.state
-            .zobrist
-            .update(mov.piece_type().with_side(side), mov.to());
-
         let piece = mov.piece_type();
+        print_bits(*allies!(side, self).get_bitboard_mut(piece));
         *allies!(side, self).get_bitboard_mut(piece) ^= mov.from().as_mask() | mov.to().as_mask();
         self.state
             .board
@@ -268,8 +262,6 @@ impl SearchBoard {
         self.state
             .zobrist
             .update_ep_square(side, self.state.en_passant_square, updated_ep);
-
-        self.state.zobrist.switch_side();
 
         self.attacked = unmove.attacked_squares;
         self.state.white_castling = unmove.white_castling;
@@ -505,12 +497,14 @@ impl Debug for BoardState {
         Debug::fmt(&self.black, f)?;
         write!(f, "\nwhite: ")?;
         Debug::fmt(&self.white, f)?;
-        write!(f, "black castle rights: ")?;
+        write!(f, "\nblack castle rights: ")?;
         Debug::fmt(&self.black_castling, f)?;
         write!(f, "\nwhite castle rights: ")?;
         Debug::fmt(&self.white_castling, f)?;
         write!(f, "\nzobrist: ")?;
         Debug::fmt(&self.zobrist, f)?;
+        write!(f, "\nside: ");
+        Debug::fmt(&self.side, f)?;
         Ok(())
     }
 }

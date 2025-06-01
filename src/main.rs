@@ -6,6 +6,7 @@ use position::Position;
 use search_data::{CheckPath, PinState};
 
 mod board;
+mod engine;
 mod hashers;
 mod magic_bitboards;
 mod moving;
@@ -17,40 +18,21 @@ mod search_masks;
 mod zobrist;
 
 fn main() {
-    let mut board = SearchBoard::default();
-    for _ in 0..2 {
-        let start = SystemTime::now();
-        // print_bits(all_moves.1);
-        let pin_state = black_box(PinState::find(&board.state, Position::new(4, 0)));
-        let check_path = black_box(CheckPath::find(
-            &board.state,
-            Position::new(4, 0),
-            piece::Side::Black,
-        ));
+    // let mut board = SearchBoard::default();
+    // println!("created: {:?}", board.state);
+    // let (all_moves, attacked_squares) = board.find_all_moves();
+    // println!("found_moves: {:?}", board.state);
+    // let unmake = board.make(&all_moves[0], attacked_squares);
+    // println!("make: {:?}", board.state);
+    // // board.unmake(unmake);
+    // // println!("unmake: {:?}", board.state);
+    // println!("------");
+    // let (all_moves, attacked_squares) = board.find_all_moves();
+    // println!("found_moves: {:?}", board.state);
+    // let unmake = board.make(&all_moves[0], attacked_squares);
+    // println!("make: {:?}", board.state);
+    // board.unmake(unmake);
+    // println!("unmake: {:?}", board.state);
 
-        let (all_moves, attacked_squares) = board.find_all_moves();
-        for mov in all_moves {
-            let mut board = board.clone();
-            let _ = board.make(&mov, attacked_squares);
-            board.pin_state = PinState::find(&board.state, Position::new(4, 0));
-            board.check_paths =
-                CheckPath::find(&board.state, Position::new(4, 0), piece::Side::Black);
-            println!("{}", board.state);
-            let (all_moves, attacked_squares) = board.find_all_moves();
-            for mov in all_moves {
-                let mut board = board.clone();
-                let _ = board.make(&mov, attacked_squares);
-                board.pin_state = PinState::find(&board.state, Position::new(4, 0));
-                board.check_paths =
-                    CheckPath::find(&board.state, Position::new(4, 0), piece::Side::Black);
-
-                println!("{}", board.state);
-            }
-        }
-        println!("{}", start.elapsed().unwrap().as_nanos());
-        println!("------")
-    }
-    println!("{}", board.state);
-    let (all_moves, attacked_squares) = board.find_all_moves();
-    println!("{:?}", all_moves);
+    println!("{:?}", engine::perft::<2>());
 }
