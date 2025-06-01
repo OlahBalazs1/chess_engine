@@ -1,6 +1,6 @@
 use crate::piece::PieceType;
 use crate::position::Position;
-use crate::search_data::CheckPath;
+use crate::search_data::{CheckPath, PinState};
 use std::fmt::Debug;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -11,13 +11,16 @@ pub enum MoveType {
     ShortCastle,
     EnPassant,
 }
-#[derive(Clone)]
-pub struct Unmove {
-    mov: Move,
-    en_passant_square: Option<Position>,
-    white_castling: (bool, bool),
-    black_castling: (bool, bool),
-    zobrist: u64,
+pub struct Unmove<'a> {
+    pub mov: &'a Move,
+    pub en_passant_square: Option<Position>,
+    pub white_castling: (bool, bool),
+    pub black_castling: (bool, bool),
+    pub zobrist: u64,
+    pub attacked_squares: u64,
+    pub halfmove_clock: u8,
+    pub pin_state: PinState,
+    pub check_path: CheckPath,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]

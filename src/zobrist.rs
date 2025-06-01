@@ -99,49 +99,53 @@ impl ZobristRandom {
             },
         }
     }
-    pub fn update_hash(
-        &self,
-        mut hash: u64,
-        mov: Move,
-        piece: Piece,
-        move_side: Side,
-        en_passant_from_to: (Option<Position>, Option<Position>),
-    ) -> u64 {
-        hash ^= self.get_value(piece, mov.from());
-
-        if let Some(promoted_to) = mov.promote_to() {
-            hash ^= self.get_value(promoted_to.with_side(move_side), mov.to())
-        } else {
-            hash ^= self.get_value(piece, mov.to());
-        }
-
-        if let Some(en_passant) = en_passant_from_to.0 {
-            hash ^= self.en_passant_squares[*en_passant as usize]
-        }
-        if let Some(en_passant) = en_passant_from_to.1 {
-            hash ^= self.en_passant_squares[*en_passant as usize]
-        }
-
-        hash ^= self.black;
-
-        hash
-    }
-
-    pub fn castle_update(&self, mut hash: u64, side: Side, from: Position, to: Position) -> u64 {
-        hash ^= self.get_value(Rook.with_side(side), from);
-        hash ^= self.get_value(Rook.with_side(side), to);
-        hash
-    }
-    pub fn update_long_castle_right(&self, hash: u64, side: Side) -> u64 {
-        hash ^ match side {
-            Side::White => self.white_castle_rights[0],
-            Side::Black => self.black_castle_rights[0],
+    pub fn get_castle_right<const N: usize>(&self, side: Side) -> u64 {
+        match side {
+            Side::White => self.white_castle_rights[N],
+            Side::Black => self.black_castle_rights[N],
         }
     }
-    pub fn update_short_castle_right(&self, hash: u64, side: Side) -> u64 {
-        hash ^ match side {
-            Side::White => self.white_castle_rights[1],
-            Side::Black => self.black_castle_rights[1],
+}
+
+pub trait ZobristHash {
+    fn update(&mut self, piece: Piece, pos: Position);
+    fn update_short_castle(&mut self, side: Side);
+    fn update_long_castle(&mut self, side: Side);
+    fn switch_side(&mut self);
+    fn update_ep_square(&mut self, side: Side, before: Option<Position>, after: Option<Position>);
+}
+
+impl ZobristHash for u64 {
+    fn update(&mut self, piece: Piece, pos: Position) {
+        *self ^= ZOBRIST_RANDOM.get_value(piece, pos);
+    }
+    fn update_short_castle(&mut self, side: Side) {
+        *self ^= ZOBRIST_RANDOM.get_castle_right::<1>(side)
+    }
+    fn update_long_castle(&mut self, side: Side) {
+        *self ^= ZOBRIST_RANDOM.get_castle_right::<0>(side)
+    }
+    fn switch_side(&mut self) {
+        *self ^= ZOBRIST_RANDOM.black;
+    }
+    fn update_ep_square(&mut self, side: Side, before: Option<Position>, after: Option<Position>) {
+        if let Some(before) = before {
+            self.update(
+                Piece {
+                    side: side,
+                    piece_type: PieceType::Pawn,
+                },
+                before,
+            );
+        }
+        if let Some(after) = after {
+            self.update(
+                Piece {
+                    side: side,
+                    piece_type: PieceType::Pawn,
+                },
+                after,
+            );
         }
     }
 }

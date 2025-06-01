@@ -1,5 +1,8 @@
 use crate::position::Position;
-use std::ops::Deref;
+use std::{
+    fmt::{write, Debug, Display},
+    ops::Deref,
+};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
@@ -120,4 +123,60 @@ impl Side {
 #[inline]
 pub fn occupied(bitboard: u64, pos: Position) -> bool {
     bitboard & (1 << pos.index()) != 0
+}
+
+use PieceType::*;
+impl Debug for Piece {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Piece {
+                side: White,
+                piece_type: Pawn,
+            } => write!(f, "p"),
+            Piece {
+                side: White,
+                piece_type: Rook,
+            } => write!(f, "r"),
+            Piece {
+                side: White,
+                piece_type: Knight,
+            } => write!(f, "n"),
+            Piece {
+                side: White,
+                piece_type: Bishop,
+            } => write!(f, "b"),
+            Piece {
+                side: White,
+                piece_type: Queen,
+            } => write!(f, "q"),
+            Piece {
+                side: White,
+                piece_type: King,
+            } => write!(f, "k"),
+            Piece {
+                side: Black,
+                piece_type: Pawn,
+            } => write!(f, "P"),
+            Piece {
+                side: Black,
+                piece_type: Rook,
+            } => write!(f, "R"),
+            Piece {
+                side: Black,
+                piece_type: Knight,
+            } => write!(f, "N"),
+            Piece {
+                side: Black,
+                piece_type: Bishop,
+            } => write!(f, "B"),
+            Piece {
+                side: Black,
+                piece_type: Queen,
+            } => write!(f, "Q"),
+            Piece {
+                side: Black,
+                piece_type: King,
+            } => write!(f, "K"),
+        }
+    }
 }

@@ -1,8 +1,9 @@
+use std::fmt::{Debug, Display};
 use std::hash::Hash;
 use std::ops::Index;
 use std::rc::{Rc, Weak};
 
-use crate::moving::{Castle, Move};
+use crate::moving::{Castle, Move, MoveType, Unmove};
 use crate::piece::{Piece, PieceType, Side};
 use crate::position::{self, Position};
 use crate::search_data::{CheckPath, PinState};
@@ -17,14 +18,29 @@ pub const BISHOP: usize = 3;
 pub const QUEEN: usize = 4;
 pub const KING: usize = 5;
 
+#[derive(Clone)]
 pub struct SearchBoard {
     pub state: BoardState,
-
     pub attacked: u64,
-
     pub pin_state: PinState,
-
     pub check_paths: CheckPath,
+    pub halfmove_clock: u8,
+}
+macro_rules! allies {
+    ($side: ident, $state: ident) => {
+        $state.side_bitboards_mut($side)
+    };
+}
+macro_rules! enemies {
+    ($side: ident, $state: ident) => {
+        $state.side_bitboards_mut($side.opposite())
+    };
+}
+
+macro_rules! side_castle_rights {
+    ($side: ident, $state: ident) => {
+        $state.state.side_castle_rights_mut($side)
+    };
 }
 
 impl SearchBoard {
@@ -37,6 +53,10 @@ impl SearchBoard {
 
     pub fn side_bitboards(&self, side: Side) -> &Bitboards {
         self.state.side_bitboard(side)
+    }
+
+    pub fn side_bitboards_mut(&mut self, side: Side) -> &mut Bitboards {
+        self.state.side_bitboard_mut(side)
     }
 
     pub fn get_piece_at(&self, pos: Position) -> Option<Piece> {
@@ -77,6 +97,189 @@ impl SearchBoard {
 
         (moves, attacked_squares)
     }
+
+    pub fn make<'a>(&mut self, mov: &'a Move, attacked_squares: u64) -> Unmove<'a> {
+        let side = self.state.side;
+
+        let black_castle_buf = self.state.black_castling.clone();
+        let white_castle_buf = self.state.white_castling.clone();
+
+        let unmake = Unmove {
+            mov,
+            en_passant_square: self.state.en_passant_square.clone(),
+            white_castling: white_castle_buf,
+            black_castling: black_castle_buf,
+            zobrist: self.state.zobrist,
+            attacked_squares: self.attacked,
+            halfmove_clock: self.halfmove_clock,
+            pin_state: self.pin_state.clone(),
+            check_path: self.check_paths.clone(),
+        };
+
+        let mut increment_halfmove = true;
+
+        let mut updated_ep = None;
+
+        self.state
+            .zobrist
+            .update(mov.piece_type().with_side(side), mov.from());
+        self.state
+            .zobrist
+            .update(mov.piece_type().with_side(side), mov.to());
+
+        let piece = mov.piece_type();
+        *allies!(side, self).get_bitboard_mut(piece) ^= mov.from().as_mask() | mov.to().as_mask();
+        self.state
+            .board
+            .board
+            .swap(*mov.from() as usize, *mov.to() as usize);
+
+        if let Some(taken) = mov.take {
+            *enemies!(side, self).get_bitboard_mut(taken) ^= mov.to().as_mask();
+            increment_halfmove = false;
+
+            // set to taken in unmake
+            self.state.board.board[*mov.from() as usize] = None;
+        }
+        match mov.move_type {
+            MoveType::Normal(PieceType::Rook) => {
+                if *mov.from() == 0 + side.home_y() * 8 {
+                    side_castle_rights!(side, self).0 = false
+                } else if *mov.from() == 7 + side.home_y() * 8 {
+                    side_castle_rights!(side, self).1 = false
+                }
+            }
+            MoveType::Normal(PieceType::Pawn) if mov.is_pawn_starter() => {
+                increment_halfmove = false;
+                updated_ep = Some(mov.from().with_y(side.pers_y(2)).unwrap());
+            }
+            MoveType::Promotion(p) => {
+                self.state.board.board[*mov.to() as usize] = Some(p.with_side(side));
+                allies!(side, self).state[PAWN] ^= mov.to().as_mask();
+                *allies!(side, self).get_bitboard_mut(p) ^= mov.to().as_mask();
+            }
+            MoveType::LongCastle => self.state.board.board.swap(
+                (5 + side.home_y() * 8) as usize,
+                (7 + side.home_y() * 8) as usize,
+            ),
+            MoveType::ShortCastle => self.state.board.board.swap(
+                (0 + side.home_y() * 8) as usize,
+                (2 + side.home_y() * 8) as usize,
+            ),
+            MoveType::EnPassant => {
+                let ep_pawn = mov.to().with_y(side.pers_y(3)).unwrap();
+                increment_halfmove = false;
+                enemies!(side, self).state[PAWN] ^= ep_pawn.as_mask();
+
+                // set to taken in unmake
+                self.state.board.board[*ep_pawn as usize] = None;
+            }
+            _ => {}
+        }
+
+        if increment_halfmove {
+            self.halfmove_clock += 1;
+        }
+
+        self.state
+            .zobrist
+            .update_ep_square(side, self.state.en_passant_square, updated_ep);
+
+        self.state.zobrist.switch_side();
+
+        // probably has to be dealt with in unmake
+        if mov.piece_type() == PieceType::King {
+            if self.state.side_castle_rights(side).0 {
+                side_castle_rights!(side, self).0 = false;
+                self.state.zobrist.update_long_castle(side);
+            }
+            if self.state.side_castle_rights(side).1 {
+                side_castle_rights!(side, self).1 = false;
+                self.state.zobrist.update_short_castle(side);
+            }
+        }
+
+        self.state.side = self.state.side.opposite();
+        self.attacked = attacked_squares;
+
+        unmake
+    }
+
+    pub fn unmake(&mut self, unmove: Unmove) {
+        let side = self.state.side;
+
+        let mut updated_ep = None;
+        let mov = unmove.mov;
+
+        self.state
+            .zobrist
+            .update(mov.piece_type().with_side(side), mov.from());
+        self.state
+            .zobrist
+            .update(mov.piece_type().with_side(side), mov.to());
+
+        let piece = mov.piece_type();
+        *allies!(side, self).get_bitboard_mut(piece) ^= mov.from().as_mask() | mov.to().as_mask();
+        self.state
+            .board
+            .board
+            .swap(*mov.from() as usize, *mov.to() as usize);
+
+        if let Some(taken) = mov.take {
+            *enemies!(side, self).get_bitboard_mut(taken) ^= mov.to().as_mask();
+
+            // set to taken in unmake
+            self.state.board.board[*mov.from() as usize] = Some(taken.with_side(side.opposite()));
+        }
+        match mov.move_type {
+            MoveType::Normal(PieceType::Rook) => {
+                if *mov.from() == 0 + side.home_y() * 8 {
+                    side_castle_rights!(side, self).0 = false
+                } else if *mov.from() == 7 + side.home_y() * 8 {
+                    side_castle_rights!(side, self).1 = false
+                }
+            }
+            MoveType::Normal(PieceType::Pawn) if mov.is_pawn_starter() => {
+                updated_ep = Some(mov.from().with_y(side.pers_y(2)).unwrap());
+            }
+            MoveType::Promotion(p) => {
+                self.state.board.board[*mov.to() as usize] = Some(p.with_side(side));
+                allies!(side, self).state[PAWN] ^= mov.to().as_mask();
+                *allies!(side, self).get_bitboard_mut(p) ^= mov.to().as_mask();
+            }
+            MoveType::LongCastle => self.state.board.board.swap(
+                (5 + side.home_y() * 8) as usize,
+                (7 + side.home_y() * 8) as usize,
+            ),
+            MoveType::ShortCastle => self.state.board.board.swap(
+                (0 + side.home_y() * 8) as usize,
+                (2 + side.home_y() * 8) as usize,
+            ),
+            MoveType::EnPassant => {
+                let ep_pawn = mov.to().with_y(side.pers_y(3)).unwrap();
+                enemies!(side, self).state[PAWN] ^= ep_pawn.as_mask();
+
+                // set to taken in unmake
+                self.state.board.board[*ep_pawn as usize] = Some(Pawn.with_side(side.opposite()));
+            }
+            _ => {}
+        }
+
+        self.state
+            .zobrist
+            .update_ep_square(side, self.state.en_passant_square, updated_ep);
+
+        self.state.zobrist.switch_side();
+
+        self.attacked = unmove.attacked_squares;
+        self.state.white_castling = unmove.white_castling;
+        self.state.black_castling = unmove.black_castling;
+        self.state.zobrist = unmove.zobrist;
+        self.halfmove_clock = unmove.halfmove_clock;
+        self.state.en_passant_square = unmove.en_passant_square;
+        self.pin_state = unmove.pin_state;
+        self.check_paths = unmove.check_path;
+    }
 }
 
 impl Default for SearchBoard {
@@ -86,11 +289,12 @@ impl Default for SearchBoard {
             attacked: 0x7effff0000000000,
             pin_state: PinState::default(),
             check_paths: CheckPath::default(),
+            halfmove_clock: 0,
         }
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Bitboards {
     // Pawn, rook, knight, bishop, queen, king
     pub state: [u64; 6],
@@ -150,7 +354,6 @@ impl Bitboards {
     }
 }
 
-// TODO TODO TODO TODO INCREMENTAL MOVES (UNMAKE)
 #[derive(Clone)]
 pub struct BoardRepr {
     board: [Option<Piece>; 64],
@@ -187,6 +390,7 @@ impl Index<usize> for BoardRepr {
     }
 }
 
+#[derive(Clone)]
 pub struct BoardState {
     pub black: Bitboards,
     pub white: Bitboards,
@@ -200,16 +404,6 @@ pub struct BoardState {
 }
 
 impl BoardState {
-    pub fn update_zobrist(
-        &mut self,
-        mov: Move,
-        piece: Piece,
-        move_side: Side,
-        en_passant_from_to: (Option<Position>, Option<Position>),
-    ) {
-        self.zobrist =
-            ZOBRIST_RANDOM.update_hash(self.zobrist, mov, piece, move_side, en_passant_from_to)
-    }
     pub fn get_bitboard(&self, piece: Piece) -> u64 {
         use Side::*;
         match piece {
@@ -292,5 +486,46 @@ impl Default for BoardState {
         };
         ZOBRIST_RANDOM.hash_board(&mut state);
         state
+    }
+}
+
+impl Debug for BoardState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        for (index, i) in self.board.board.iter().enumerate() {
+            if index % 8 == 0 {
+                write!(f, "\n")?;
+            }
+            if let Some(i) = i {
+                Debug::fmt(&i, f)?
+            } else {
+                write!(f, " ")?
+            }
+        }
+        write!(f, "\nblack: ")?;
+        Debug::fmt(&self.black, f)?;
+        write!(f, "\nwhite: ")?;
+        Debug::fmt(&self.white, f)?;
+        write!(f, "black castle rights: ")?;
+        Debug::fmt(&self.black_castling, f)?;
+        write!(f, "\nwhite castle rights: ")?;
+        Debug::fmt(&self.white_castling, f)?;
+        write!(f, "\nzobrist: ")?;
+        Debug::fmt(&self.zobrist, f)?;
+        Ok(())
+    }
+}
+impl Display for BoardState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        for (index, i) in self.board.board.iter().enumerate() {
+            if index % 8 == 0 {
+                write!(f, "\n")?;
+            }
+            if let Some(i) = i {
+                Debug::fmt(&i, f)?
+            } else {
+                write!(f, " ")?
+            }
+        }
+        Ok(())
     }
 }
