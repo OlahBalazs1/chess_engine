@@ -1,9 +1,9 @@
 use crate::piece::PieceType;
 use crate::position::Position;
 use crate::search_data::{CheckPath, PinState};
-use std::fmt::Debug;
+use std::fmt::{Debug, Display};
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum MoveType {
     Normal(PieceType),
     Promotion(PieceType),
@@ -23,7 +23,7 @@ pub struct Unmove<'a> {
     pub check_path: CheckPath,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct Move {
     pub move_type: MoveType,
     pub from: Position,
@@ -80,7 +80,7 @@ impl Move {
         Position::from_index((*self.from() + *self.to()) / 2)
     }
 }
-impl Debug for Move {
+impl Display for Move {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let (piece_prefix, promote_suffix) = match self.move_type {
             MoveType::Normal(with) => match with {

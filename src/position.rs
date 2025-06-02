@@ -29,7 +29,7 @@ impl Offset {
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 #[repr(transparent)]
 pub struct Position {
-    index: u8,
+    pub index: u8,
 }
 
 impl Deref for Position {

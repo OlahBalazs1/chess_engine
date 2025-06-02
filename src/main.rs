@@ -22,17 +22,18 @@ fn main() {
     // println!("created: {:?}", board.state);
     // let (all_moves, attacked_squares) = board.find_all_moves();
     // println!("found_moves: {:?}", board.state);
-    // let unmake = board.make(&all_moves[0], attacked_squares);
+    // let _ = board.make(&all_moves[0], attacked_squares);
     // println!("make: {:?}", board.state);
     // // board.unmake(unmake);
     // // println!("unmake: {:?}", board.state);
     // println!("------");
     // let (all_moves, attacked_squares) = board.find_all_moves();
-    // println!("found_moves: {:?}", board.state);
     // let unmake = board.make(&all_moves[0], attacked_squares);
     // println!("make: {:?}", board.state);
     // board.unmake(unmake);
     // println!("unmake: {:?}", board.state);
 
-    println!("{:?}", engine::perft::<2>());
+    const DEPTH: usize = 4;
+    println!("{:?}", engine::perft::<DEPTH>());
+    // println!("{:?}", engine::perft_copy::<DEPTH>());
 }

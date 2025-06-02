@@ -2,13 +2,13 @@ use std::pin::Pin;
 
 use crate::{
     board::{BoardState, SearchBoard, BISHOP, KNIGHT, QUEEN, ROOK},
-    magic_bitboards::{MagicData, MagicMover, MAGIC_MOVER},
+    magic_bitboards::{print_bits, MagicData, MagicMover, MAGIC_MOVER},
     piece::Side,
     position::Position,
     search_masks::{KNIGHT_MASKS, PAWN_TAKE_MASKS},
 };
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct PinState {
     pub diagonal_1: u64,
     pub diagonal_2: u64,
@@ -47,7 +47,7 @@ impl Default for PinState {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum CheckPath {
     Multiple,
     Blockable(u64),
@@ -148,6 +148,10 @@ impl CheckPath {
                     | i.as_mask()
             })
         }
+        // match path {
+        //     CheckPath::Blockable(i) => print_bits(i),
+        //     _ => {}
+        // }
         path
     }
 }

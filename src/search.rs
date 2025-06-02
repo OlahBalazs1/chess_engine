@@ -85,7 +85,7 @@ fn find_pawn_unrestricted(
             if enemies & i.as_mask() != 0 {
                 gen_pawn_moves(moves, pos, i, all_square_data.get(pos).map(|i| i.role()));
             } else if ep_square.is_some_and(|ep| ep == i) {
-                moves.push(Move::new(pos, i, MoveType::EnPassant, Some(Pawn)));
+                moves.push(Move::new(pos, i, MoveType::EnPassant, None));
             }
         }
     });
@@ -98,14 +98,7 @@ fn find_pawn_unrestricted(
         return;
     };
     if (allies | enemies) & next.as_mask() == 0 {
-        gen_pawn_moves(
-            moves,
-            pos,
-            next,
-            all_square_data
-                .get(next)
-                .and_then(|i| i.filter_side(side.opposite()).map(|i| i.role())),
-        );
+        gen_pawn_moves(moves, pos, next, None);
     } else {
         return;
     }
@@ -115,14 +108,7 @@ fn find_pawn_unrestricted(
             return;
         };
         if (allies | enemies) & next.as_mask() == 0 {
-            gen_pawn_moves(
-                moves,
-                pos,
-                next,
-                all_square_data
-                    .get(next)
-                    .and_then(|i| i.filter_side(side.opposite()).map(|i| i.role())),
-            );
+            gen_pawn_moves(moves, pos, next, None);
         }
     }
 }
@@ -145,17 +131,21 @@ fn find_pawn_restricted(
     };
 
     PAWN_TAKE_MASKS.with(|m| {
-        let data = &m[*pos as usize];
-        *attack_bits |= if yo == 1 {
-            data.sum << 8
-        } else {
-            data.sum >> 8
-        };
-        for i in data.positions.iter().filter_map(|i| pos.with_y(**i)) {
-            if must_block & i.as_mask() != 0 && enemies & i.as_mask() != 0 {
-                gen_pawn_moves(moves, pos, i, all_square_data.get(pos).map(|i| i.role()));
-            } else if ep_square.is_some_and(|ep| ep == i) {
-                moves.push(Move::new(pos, i, MoveType::EnPassant, Some(Pawn)));
+        if let Some(can_take) = pos.with_offset(Offset::new(0, yo)) {
+            let data = &m[*can_take as usize];
+            *attack_bits |= data.sum;
+            // let data = &m[*pos as usize];
+            // *attack_bits |= if yo == 1 {
+            //     data.sum << 8
+            // } else {
+            //     data.sum >> 8
+            // };
+            for i in data.positions.iter().filter_map(|i| pos.with_y(**i)) {
+                if must_block & i.as_mask() != 0 && enemies & i.as_mask() != 0 {
+                    gen_pawn_moves(moves, pos, i, all_square_data.get(i).map(|i| i.role()));
+                } else if ep_square.is_some_and(|ep| ep == i) {
+                    moves.push(Move::new(pos, i, MoveType::EnPassant, Some(Pawn)));
+                }
             }
         }
     });
@@ -169,14 +159,7 @@ fn find_pawn_restricted(
     };
     if (allies | enemies) & next.as_mask() == 0 {
         if must_block & next.as_mask() != 0 {
-            gen_pawn_moves(
-                moves,
-                pos,
-                next,
-                all_square_data
-                    .get(next)
-                    .and_then(|i| i.filter_side(side.opposite()).map(|i| i.role())),
-            );
+            gen_pawn_moves(moves, pos, next, None);
         }
     } else {
         return;
@@ -188,14 +171,7 @@ fn find_pawn_restricted(
         };
         if (allies | enemies) & next.as_mask() == 0 {
             if must_block & next.as_mask() != 0 {
-                gen_pawn_moves(
-                    moves,
-                    pos,
-                    next,
-                    all_square_data
-                        .get(next)
-                        .and_then(|i| i.filter_side(side.opposite()).map(|i| i.role())),
-                );
+                gen_pawn_moves(moves, pos, next, None);
             }
         }
     }
@@ -450,7 +426,7 @@ pub fn find_bishop_with_magic(
             .normal
             .iter()
             .copied()
-            .map(|i| Move::new(pos, i, MoveType::Normal(Rook), None));
+            .map(|i| Move::new(pos, i, MoveType::Normal(Bishop), None));
 
         let takes = data
             .possible_takes()
@@ -459,9 +435,9 @@ pub fn find_bishop_with_magic(
                 Move::new(
                     pos,
                     i,
-                    MoveType::Normal(PieceType::Rook),
+                    MoveType::Normal(PieceType::Bishop),
                     all_square_data
-                        .get(pos)
+                        .get(i)
                         .and_then(|i| i.filter_side(side).map(|i| i.role())),
                 )
             });
@@ -473,7 +449,7 @@ pub fn find_bishop_with_magic(
             .iter()
             .copied()
             .filter(|i| must_block & i.as_mask() != 0)
-            .map(|i| Move::new(pos, i, MoveType::Normal(Rook), None));
+            .map(|i| Move::new(pos, i, MoveType::Normal(Bishop), None));
 
         let takes = data
             .possible_takes()
@@ -482,9 +458,9 @@ pub fn find_bishop_with_magic(
                 Move::new(
                     pos,
                     i,
-                    MoveType::Normal(PieceType::Rook),
+                    MoveType::Normal(PieceType::Bishop),
                     all_square_data
-                        .get(pos)
+                        .get(i)
                         .and_then(|i| i.filter_side(side).map(|i| i.role())),
                 )
             });
@@ -578,7 +554,7 @@ fn queen_unrestricted(
                 i,
                 MoveType::Normal(PieceType::Queen),
                 all_square_data
-                    .get(pos)
+                    .get(i)
                     .and_then(|i| i.filter_side(side).map(|i| i.role())),
             )
         });
@@ -603,7 +579,7 @@ fn queen_unrestricted(
                 i,
                 MoveType::Normal(PieceType::Queen),
                 all_square_data
-                    .get(pos)
+                    .get(i)
                     .and_then(|i| i.filter_side(side).map(|i| i.role())),
             )
         });
@@ -640,7 +616,7 @@ fn queen_restricted(
                 i,
                 MoveType::Normal(PieceType::Queen),
                 all_square_data
-                    .get(pos)
+                    .get(i)
                     .and_then(|i| i.filter_side(side).map(|i| i.role())),
             )
         });
