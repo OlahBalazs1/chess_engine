@@ -244,7 +244,7 @@ impl SearchBoard {
         if let Some(taken) = mov.take {
             *enemies!(side, self).get_bitboard_mut(taken) ^= mov.to().as_mask();
 
-            self.state.board.board[*mov.from() as usize] = Some(taken.with_side(side));
+            self.state.board.board[*mov.to() as usize] = Some(taken.with_side(side));
         }
         match mov.move_type {
             MoveType::Promotion(p) => {

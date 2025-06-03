@@ -274,7 +274,7 @@ pub fn find_king(moves: &mut Vec<Move>, attack_bits: &mut u64, pos: Position, st
                         i,
                         MoveType::Normal(PieceType::King),
                         all_square_data
-                            .get(pos)
+                            .get(i)
                             .and_then(|i| i.filter_side(side).map(|i| i.role())),
                     )
                 }),
@@ -639,7 +639,16 @@ fn queen_restricted(
             .iter()
             .copied()
             .filter(|i| allies & i.as_mask() == 0 && must_block & i.as_mask() != 0)
-            .map(|i| Move::new(pos, i, MoveType::Normal(PieceType::Queen), None)),
+            .map(|i| {
+                Move::new(
+                    pos,
+                    i,
+                    MoveType::Normal(PieceType::Queen),
+                    all_square_data
+                        .get(i)
+                        .and_then(|i| i.filter_side(side).map(|i| i.role())),
+                )
+            }),
     );
     moves.extend(normals.chain(takes));
 }
