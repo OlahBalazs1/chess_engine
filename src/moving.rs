@@ -1,4 +1,4 @@
-use crate::piece::PieceType;
+use crate::piece::{Piece, PieceType};
 use crate::position::Position;
 use crate::search_data::{CheckPath, PinState};
 use std::fmt::{Debug, Display};
@@ -28,7 +28,7 @@ pub struct Move {
     pub move_type: MoveType,
     pub from: Position,
     pub to: Position,
-    pub take: Option<PieceType>,
+    pub take: Option<Piece>,
 }
 
 pub enum Castle {
@@ -38,7 +38,7 @@ pub enum Castle {
 }
 
 impl Move {
-    pub fn new(from: Position, to: Position, move_type: MoveType, take: Option<PieceType>) -> Self {
+    pub fn new(from: Position, to: Position, move_type: MoveType, take: Option<Piece>) -> Self {
         Self {
             from,
             to,
@@ -110,7 +110,7 @@ impl Display for Move {
             MoveType::EnPassant => ("", ""),
         };
         let take = match self.take {
-            Some(i) => match i {
+            Some(i) => match i.role() {
                 PieceType::Pawn => "xP",
                 PieceType::Rook => "xR",
                 PieceType::Bishop => "xB",

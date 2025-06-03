@@ -44,8 +44,9 @@ fn perft_search<const N: usize>(board: &mut SearchBoard, results: &mut [u32; N],
 
         if board_clone.state != board.state {
             println!("depth: {}", results.len() - depth + 1);
-            println!("{:?}", board_clone.state.board.get(Position::new(6, 4)));
-            println!("{:?}", board.state.board.get(Position::new(6, 4)));
+            println!("{:?}", board_clone.state);
+            println!("{:?}", board_clone.state.board.get(Position::new(7, 5)));
+            println!("{:?}", board.state.board.get(Position::new(7, 5)));
             if let Some(last_arch) = last_arch {
                 println!("Mismatch: {}", last_arch)
             }

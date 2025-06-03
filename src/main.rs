@@ -33,7 +33,7 @@ fn main() {
     // board.unmake(unmake);
     // println!("unmake: {:?}", board.state);
 
-    const DEPTH: usize = 4;
+    const DEPTH: usize = 6;
     println!("{:?}", engine::perft::<DEPTH>());
     // println!("{:?}", engine::perft_copy::<DEPTH>());
 }

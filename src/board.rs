@@ -50,6 +50,11 @@ impl SearchBoard {
     pub fn side(&self) -> Side {
         self.state.side
     }
+
+    pub fn get_bitboard_mut(&mut self, piece: Piece) -> &mut u64 {
+        self.side_bitboards_mut(piece.side())
+            .get_bitboard_mut(piece.role())
+    }
     pub fn curr_side_bitboards(&self) -> &Bitboards {
         self.side_bitboards(self.side())
     }
@@ -148,7 +153,7 @@ impl SearchBoard {
             .swap(*mov.from() as usize, *mov.to() as usize);
 
         if let Some(taken) = mov.take {
-            *enemies!(side, self).get_bitboard_mut(taken) ^= mov.to().as_mask();
+            *self.get_bitboard_mut(taken) ^= mov.to().as_mask();
             increment_halfmove = false;
 
             self.state.board.board[*mov.from() as usize] = None;
@@ -242,9 +247,9 @@ impl SearchBoard {
             .swap(*mov.from() as usize, *mov.to() as usize);
 
         if let Some(taken) = mov.take {
-            *enemies!(side, self).get_bitboard_mut(taken) ^= mov.to().as_mask();
+            *self.get_bitboard_mut(taken) ^= mov.to().as_mask();
 
-            self.state.board.board[*mov.to() as usize] = Some(taken.with_side(side));
+            self.state.board.board[*mov.to() as usize] = Some(taken);
         }
         match mov.move_type {
             MoveType::Promotion(p) => {
