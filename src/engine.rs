@@ -32,29 +32,32 @@ fn perft_search<const N: usize>(board: &mut SearchBoard, results: &mut [u32; N],
     let (moves, attacked_squares) = board.find_all_moves();
     results[depth - 1] += moves.len() as u32;
     for (index, mov) in moves.iter().enumerate() {
-        let last_arch;
-        unsafe {
-            last_arch = LAST_MOVE;
-        }
-        let board_clone = board.clone();
-        set_last_move(*mov);
+        // let last_arch;
+        // unsafe {
+        //     last_arch = LAST_MOVE;
+        // }
+        // let board_clone = board.clone();
+        // if mov.take.is_some_and(|i| i.side == board.side()) {
+        //     panic!("Friendly fire")
+        // }
+        // set_last_move(*mov);
         let unmove = board.make(&mov, attacked_squares);
         perft_search(board, results, depth - 1);
         board.unmake(unmove);
 
-        if board_clone.state != board.state {
-            println!("depth: {}", results.len() - depth + 1);
-            println!("{:?}", board_clone.state);
-            println!("{:?}", board_clone.state.board.get(Position::new(7, 5)));
-            println!("{:?}", board.state.board.get(Position::new(7, 5)));
-            if let Some(last_arch) = last_arch {
-                println!("Mismatch: {}", last_arch)
-            }
-            println!("After: {}", mov);
-            // println!("{:?}", board.state); println!("---");
-            // println!("{:?}", board_clone.state);
-            return;
-        }
+        // if board_clone.state != board.state {
+        //     println!("depth: {}", results.len() - depth + 1);
+        //     println!("{:?}", board_clone.state);
+        //     println!("{:?}", board_clone.state.board.get(Position::new(7, 5)));
+        //     println!("{:?}", board.state.board.get(Position::new(7, 5)));
+        //     if let Some(last_arch) = last_arch {
+        //         println!("Mismatch: {}", last_arch)
+        //     }
+        //     println!("After: {}", mov);
+        //     // println!("{:?}", board.state); println!("---");
+        //     // println!("{:?}", board_clone.state);
+        //     return;
+        // }
     }
 }
 

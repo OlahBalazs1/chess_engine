@@ -75,21 +75,20 @@ fn find_pawn_unrestricted(
         Side::White => 1,
         Side::Black => -1,
     };
-    PAWN_TAKE_MASKS.with(|m| {
-        let data = &m[*pos as usize];
-        *attack_bits |= if yo == 1 {
-            data.sum << 8
-        } else {
-            data.sum >> 8
-        };
-        for i in data.positions.iter().filter_map(|i| pos.with_y(**i)) {
-            if enemies & i.as_mask() != 0 {
-                gen_pawn_moves(moves, pos, i, all_square_data.get(pos));
-            } else if ep_square.is_some_and(|ep| ep == i) {
-                moves.push(Move::new(pos, i, MoveType::EnPassant, None));
-            }
+
+    let data = &PAWN_TAKE_MASKS[*pos as usize];
+    *attack_bits |= if yo == 1 {
+        data.sum << 8
+    } else {
+        data.sum >> 8
+    };
+    for i in data.positions.iter().filter_map(|i| pos.with_y(**i)) {
+        if enemies & i.as_mask() != 0 {
+            gen_pawn_moves(moves, pos, i, all_square_data.get(pos));
+        } else if ep_square.is_some_and(|ep| ep == i) {
+            moves.push(Move::new(pos, i, MoveType::EnPassant, None));
         }
-    });
+    }
 
     let mut moves_iter = [Offset::new(0, yo), Offset::new(0, yo * 2)]
         .into_iter()
@@ -131,25 +130,23 @@ fn find_pawn_restricted(
         Side::Black => -1,
     };
 
-    PAWN_TAKE_MASKS.with(|m| {
-        if let Some(can_take) = pos.with_offset(Offset::new(0, yo)) {
-            let data = &m[*can_take as usize];
-            *attack_bits |= data.sum;
-            // let data = &m[*pos as usize];
-            // *attack_bits |= if yo == 1 {
-            //     data.sum << 8
-            // } else {
-            //     data.sum >> 8
-            // };
-            for i in data.positions.iter().filter_map(|i| pos.with_y(**i)) {
-                if must_block & i.as_mask() != 0 && enemies & i.as_mask() != 0 {
-                    gen_pawn_moves(moves, pos, i, all_square_data.get(i));
-                } else if ep_square.is_some_and(|ep| ep == i) {
-                    moves.push(Move::new(pos, i, MoveType::EnPassant, None));
-                }
+    if let Some(can_take) = pos.with_offset(Offset::new(0, yo)) {
+        let data = &PAWN_TAKE_MASKS[*can_take as usize];
+        *attack_bits |= data.sum;
+        // let data = &m[*pos as usize];
+        // *attack_bits |= if yo == 1 {
+        //     data.sum << 8
+        // } else {
+        //     data.sum >> 8
+        // };
+        for i in data.positions.iter().filter_map(|i| pos.with_y(**i)) {
+            if must_block & i.as_mask() != 0 && enemies & i.as_mask() != 0 {
+                gen_pawn_moves(moves, pos, i, all_square_data.get(i));
+            } else if ep_square.is_some_and(|ep| ep == i) {
+                moves.push(Move::new(pos, i, MoveType::EnPassant, None));
             }
         }
-    });
+    }
 
     let mut moves_iter = [Offset::new(0, yo), Offset::new(0, yo * 2)]
         .into_iter()
@@ -205,10 +202,10 @@ pub fn find_knight(
     }
 
     match state.check_paths {
-        CheckPath::None => KNIGHT_MASKS.with(|m| {
-            *attack_bits |= m[*pos as usize].sum;
+        CheckPath::None => {
+            *attack_bits |= KNIGHT_MASKS[*pos as usize].sum;
             moves.extend({
-                m[*pos as usize]
+                KNIGHT_MASKS[*pos as usize]
                     .positions
                     .iter()
                     .copied()
@@ -222,12 +219,12 @@ pub fn find_knight(
                         )
                     })
             })
-        }),
+        }
 
-        CheckPath::Blockable(must_block) => KNIGHT_MASKS.with(|m| {
-            *attack_bits |= m[*pos as usize].sum;
+        CheckPath::Blockable(must_block) => {
+            *attack_bits |= KNIGHT_MASKS[*pos as usize].sum;
             moves.extend({
-                m[*pos as usize]
+                KNIGHT_MASKS[*pos as usize]
                     .positions
                     .iter()
                     .copied()
@@ -241,7 +238,7 @@ pub fn find_knight(
                         )
                     })
             })
-        }),
+        }
 
         CheckPath::Multiple => return,
     }
@@ -257,24 +254,22 @@ pub fn find_king(moves: &mut Vec<Move>, attack_bits: &mut u64, pos: Position, st
     let must_avoid = allies | attacked_squares;
 
     // normal moving
-    KING_MASKS.with(|m| {
-        *attack_bits |= m[*pos as usize].sum;
-        moves.extend(
-            m[*pos as usize]
-                .positions
-                .iter()
-                .copied()
-                .filter(|i| must_avoid & i.as_mask() == 0)
-                .map(|i| {
-                    Move::new(
-                        pos,
-                        i,
-                        MoveType::Normal(PieceType::King),
-                        all_square_data.get(i),
-                    )
-                }),
-        )
-    });
+    *attack_bits |= KING_MASKS[*pos as usize].sum;
+    moves.extend(
+        KING_MASKS[*pos as usize]
+            .positions
+            .iter()
+            .copied()
+            .filter(|i| must_avoid & i.as_mask() == 0)
+            .map(|i| {
+                Move::new(
+                    pos,
+                    i,
+                    MoveType::Normal(PieceType::King),
+                    all_square_data.get(i),
+                )
+            }),
+    );
 
     match state.check_paths {
         CheckPath::None => {
@@ -304,7 +299,7 @@ pub fn find_king(moves: &mut Vec<Move>, attack_bits: &mut u64, pos: Position, st
 }
 
 pub fn find_rook(moves: &mut Vec<Move>, attack_bits: &mut u64, pos: Position, state: &SearchBoard) {
-    MAGIC_MOVER.with(|m| find_rook_with_magic(moves, attack_bits, pos, state, m))
+    find_rook_with_magic(moves, attack_bits, pos, state, &*MAGIC_MOVER)
 }
 
 pub fn find_rook_with_magic(
@@ -382,7 +377,7 @@ pub fn find_bishop(
     pos: Position,
     state: &SearchBoard,
 ) {
-    MAGIC_MOVER.with(|m| find_bishop_with_magic(moves, attack_bits, pos, state, m))
+    find_bishop_with_magic(moves, attack_bits, pos, state, &*MAGIC_MOVER)
 }
 
 pub fn find_bishop_with_magic(
@@ -462,7 +457,7 @@ pub fn find_queen(
     pos: Position,
     state: &SearchBoard,
 ) {
-    MAGIC_MOVER.with(|m| find_queen_with_magic(moves, attack_bits, pos, state, m))
+    find_queen_with_magic(moves, attack_bits, pos, state, &*MAGIC_MOVER)
 }
 
 pub fn find_queen_with_magic(

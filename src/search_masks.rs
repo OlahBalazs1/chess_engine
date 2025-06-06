@@ -1,4 +1,4 @@
-use crate::position::Offset;
+use crate::{position::Offset, utils::StaticData};
 use array_init::array_init;
 use std::{cell::LazyCell, sync::LazyLock};
 
@@ -81,11 +81,9 @@ impl SingularData {
     }
 }
 
-thread_local! {
-pub static KNIGHT_MASKS: [SingularData; 64] =
-    array_init(SingularData::horse_at_index);
-pub static KING_MASKS: [SingularData; 64] =
-    array_init(SingularData::king_at_index);
-pub static PAWN_TAKE_MASKS: [SingularData; 64] =
-    array_init(SingularData::pawn_takes);
-}
+pub static KNIGHT_MASKS: LazyLock<[SingularData; 64]> =
+    LazyLock::new(|| array_init(SingularData::horse_at_index));
+pub static KING_MASKS: LazyLock<[SingularData; 64]> =
+    LazyLock::new(|| array_init(SingularData::king_at_index));
+pub static PAWN_TAKE_MASKS: LazyLock<[SingularData; 64]> =
+    LazyLock::new(|| array_init(SingularData::pawn_takes));

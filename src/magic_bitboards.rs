@@ -3,9 +3,12 @@ use crate::{
     moving::{Move, MoveType},
     piece::PieceType,
     position::{Offset, Position},
+    utils::StaticData,
 };
+use std::cell::{LazyCell, OnceCell, UnsafeCell};
 use std::fmt::Debug;
-use std::sync::Arc;
+use std::mem::MaybeUninit;
+use std::sync::{Arc, OnceLock};
 use std::{iter, sync::LazyLock};
 
 struct MagicDataBuilder {
@@ -69,10 +72,18 @@ impl PartialEq for MagicData {
     }
 }
 
-thread_local! {
-pub static MAGIC_MOVER: MagicMover =
-    MagicMover::init(ROOK_MAGIC_HASHERS, BISHOP_MAGIC_HASHERS);
-}
+pub static MAGIC_MOVER: LazyLock<MagicMover> =
+    LazyLock::new(|| MagicMover::init(ROOK_MAGIC_HASHERS, BISHOP_MAGIC_HASHERS));
+
+// pub static MAGIC_MOVER: OnceLock<MagicMover> = OnceLock::new();
+//
+// pub fn init_magic_mover() {
+//     let _ = MAGIC_MOVER.set(MagicMover::init(ROOK_MAGIC_HASHERS, BISHOP_MAGIC_HASHERS));
+// }
+//
+// pub fn magic_mover<'a>() -> &'a MagicMover {
+//     MAGIC_MOVER.get().unwrap()
+// }
 
 pub struct MagicMover {
     rook_magics: Box<[SquareMagic]>,
@@ -256,53 +267,6 @@ fn slide_blocker_possible_moves<const N: usize>(
 
     moves.finalize()
 }
-
-// fn slide_blocker_possible_moves<const N: usize>(
-//     blocker_config: u64,
-//     start_pos: Position,
-//     offsets: [Offset; N],
-// ) -> MagicData {
-//     let mut moves = MagicDataBuilder::new();
-//
-//     let mut directions = [true; N];
-//     for i in 1..6 {
-//         let directions_clone = directions.clone();
-//
-//         let offsets = offsets
-//             .iter()
-//             .enumerate()
-//             .filter(|(index, _)| directions_clone[*index])
-//             .map(|(index, offset)| (index, offset.mul(i).unwrap()));
-//
-//         for (index, offset) in offsets {
-//             if let Some(position) = start_pos.with_offset(offset) {
-//                 if blocker_config & (1 << *position) != 0 {
-//                     directions[index] = false;
-//                     moves.add_take(position);
-//                 } else {
-//                     moves.add_normal(position);
-//                 }
-//             } else {
-//                 directions[index] = false
-//             }
-//         }
-//     }
-//
-//     // ends
-//     let offsets = offsets
-//         .iter()
-//         .enumerate()
-//         .filter(|(index, _)| directions[*index])
-//         .map(|(_, offset)| offset.mul(7).unwrap());
-//
-//     for offset in offsets {
-//         if let Some(position) = start_pos.with_offset(offset) {
-//             moves.add_end(position);
-//         }
-//     }
-//
-//     moves.finalize()
-// }
 
 fn generate_rook_blockers(pos: Position) -> Box<[u64]> {
     let indices = rook_indices(pos);

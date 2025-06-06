@@ -1,4 +1,8 @@
-use std::{hint::black_box, time::SystemTime};
+use std::{
+    alloc::System,
+    hint::{black_box, unreachable_unchecked},
+    time::SystemTime,
+};
 
 use board::SearchBoard;
 use magic_bitboards::print_bits;
@@ -15,25 +19,21 @@ mod position;
 mod search;
 mod search_data;
 mod search_masks;
+mod utils;
 mod zobrist;
 
 fn main() {
-    // let mut board = SearchBoard::default();
-    // println!("created: {:?}", board.state);
-    // let (all_moves, attacked_squares) = board.find_all_moves();
-    // println!("found_moves: {:?}", board.state);
-    // let _ = board.make(&all_moves[0], attacked_squares);
-    // println!("make: {:?}", board.state);
-    // // board.unmake(unmake);
-    // // println!("unmake: {:?}", board.state);
-    // println!("------");
-    // let (all_moves, attacked_squares) = board.find_all_moves();
-    // let unmake = board.make(&all_moves[0], attacked_squares);
-    // println!("make: {:?}", board.state);
-    // board.unmake(unmake);
-    // println!("unmake: {:?}", board.state);
-
-    const DEPTH: usize = 6;
-    println!("{:?}", engine::perft::<DEPTH>());
+    let board = SearchBoard::from_fen(
+        "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1",
+    );
+    println!("{}", board.state)
+    // let board = SearchBoard::default();
+    // let (_, _) = board.find_all_moves();
+    //
+    // const DEPTH: usize = 4;
+    //
+    // let start = SystemTime::now();
+    // println!("{:?}", engine::perft::<DEPTH>());
+    // println!("elapsed: {}", start.elapsed().unwrap().as_millis())
     // println!("{:?}", engine::perft_copy::<DEPTH>());
 }

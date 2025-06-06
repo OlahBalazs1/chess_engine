@@ -86,7 +86,7 @@ macro_rules! update_checkpath {
 }
 impl CheckPath {
     pub fn find(board: &BoardState, king_pos: Position, side: Side) -> Self {
-        MAGIC_MOVER.with(|m| CheckPath::find_with(board, king_pos, side, m))
+        CheckPath::find_with(board, king_pos, side, &*MAGIC_MOVER)
     }
 
     fn find_with(
@@ -99,30 +99,20 @@ impl CheckPath {
         let bitboards = board.side_bitboard(side);
         let enemies = bitboards.combined();
 
-        if KNIGHT_MASKS.with(|m| {
-            for i in m[*king_pos as usize].parts.iter().copied() {
-                if bitboards.state[KNIGHT] & i != 0 {
-                    update_checkpath!(path, i, true)
-                }
+        for i in KNIGHT_MASKS[*king_pos as usize].parts.iter().copied() {
+            if bitboards.state[KNIGHT] & i != 0 {
+                update_checkpath!(path, i)
             }
-            false
-        }) {
-            return path;
         }
         let yo = match side {
             Side::White => |i| i << 8,
             Side::Black => |i| i >> 8,
         };
 
-        if PAWN_TAKE_MASKS.with(|m| {
-            for i in m[*king_pos as usize].parts.iter().copied() {
-                if bitboards.state[KNIGHT] & yo(i) != 0 {
-                    update_checkpath!(path, yo(i), true)
-                }
+        for i in KNIGHT_MASKS[*king_pos as usize].parts.iter().copied() {
+            if bitboards.state[KNIGHT] & yo(i) != 0 {
+                update_checkpath!(path, yo(i))
             }
-            false
-        }) {
-            return path;
         }
         let diagonal_attackers = bitboards.state[BISHOP] | bitboards.state[QUEEN];
 
@@ -157,7 +147,7 @@ impl CheckPath {
 }
 impl PinState {
     pub fn find(state: &BoardState, king_pos: Position) -> Self {
-        MAGIC_MOVER.with(|m| PinState::find_with(state, king_pos, m))
+        PinState::find_with(state, king_pos, &*MAGIC_MOVER)
     }
     fn find_with(state: &BoardState, king_pos: Position, magic_mover: &MagicMover) -> Self {
         let ally_bitboards = state.side_bitboard(state.side);
