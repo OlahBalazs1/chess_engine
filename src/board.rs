@@ -232,7 +232,11 @@ impl SearchBoard {
             self.halfmove_clock += 1;
         }
         self.pin_state = PinState::find(&self.state, self.side_king(side));
-        self.check_paths = CheckPath::find(&self.state, self.side_king(side), side.opposite());
+        self.check_paths = CheckPath::find(&self.state, self.side_king(side.opposite()), side);
+        match self.check_paths {
+            CheckPath::Blockable(path) => print_bits(path),
+            _ => {}
+        }
         // self.pin_state = PinState::default();
         // self.check_paths = CheckPath::default();
 

@@ -1,18 +1,18 @@
+use std::collections::{HashMap, HashSet};
+
 use crate::{
     board::SearchBoard,
     magic_bitboards::print_bits,
     moving::{Move, MoveType},
     piece::PieceType,
     position::Position,
+    search_data::CheckPath,
 };
 
-static mut LAST_MOVE: Option<Move> = None;
+pub static mut COUNTER: u32 = 0;
 
-fn set_last_move(mov: Move) {
-    unsafe { LAST_MOVE = Some(mov) }
-}
-fn get_last_move() -> Move {
-    unsafe { LAST_MOVE.unwrap() }
+fn increment_counter() {
+    unsafe { COUNTER += 1 }
 }
 
 pub fn perft<const DEPTH: usize>() -> [u32; DEPTH] {
@@ -24,6 +24,8 @@ pub fn perft<const DEPTH: usize>() -> [u32; DEPTH] {
 
     return results;
 }
+use MoveType::*;
+use PieceType::*;
 
 fn perft_search<const N: usize>(board: &mut SearchBoard, results: &mut [u32; N], depth: usize) {
     if depth == 0 {
@@ -32,32 +34,43 @@ fn perft_search<const N: usize>(board: &mut SearchBoard, results: &mut [u32; N],
     let (moves, attacked_squares) = board.find_all_moves();
     results[depth - 1] += moves.len() as u32;
     for (index, mov) in moves.iter().enumerate() {
-        // let last_arch;
-        // unsafe {
-        //     last_arch = LAST_MOVE;
-        // }
-        // let board_clone = board.clone();
-        // if mov.take.is_some_and(|i| i.side == board.side()) {
-        //     panic!("Friendly fire")
-        // }
-        // set_last_move(*mov);
+        let board_clone = board.clone();
+        match mov.move_type {
+            LongCastle => panic!("Castle detected"),
+            ShortCastle => panic!("Castle detected"),
+            _ => {}
+        }
+        if let Some(_) = mov.take {
+            println!("{}", mov);
+            increment_counter();
+        }
         let unmove = board.make(&mov, attacked_squares);
+        // if let Some(taken) = mov.take {
+        //     println!("{}", board.state);
+        //     println!("-----");
+        // }
+
+        // match board.check_paths {
+        //     CheckPath::Blockable(path) => {
+        //         print_bits(path);
+        //         increment_counter();
+        //     }
+        //     CheckPath::Multiple => panic!("Wrong checkpath"),
+        //     CheckPath::None => {}
+        // }
         perft_search(board, results, depth - 1);
         board.unmake(unmove);
 
-        // if board_clone.state != board.state {
-        //     println!("depth: {}", results.len() - depth + 1);
-        //     println!("{:?}", board_clone.state);
-        //     println!("{:?}", board_clone.state.board.get(Position::new(7, 5)));
-        //     println!("{:?}", board.state.board.get(Position::new(7, 5)));
-        //     if let Some(last_arch) = last_arch {
-        //         println!("Mismatch: {}", last_arch)
-        //     }
-        //     println!("After: {}", mov);
-        //     // println!("{:?}", board.state); println!("---");
-        //     // println!("{:?}", board_clone.state);
-        //     return;
-        // }
+        if board_clone.state != board.state {
+            println!("depth: {}", results.len() - depth + 1);
+            println!("{:?}", board_clone.state);
+            println!("{:?}", board_clone.state.board.get(Position::new(7, 5)));
+            println!("{:?}", board.state.board.get(Position::new(7, 5)));
+            println!("After: {}", mov);
+            // println!("{:?}", board.state); println!("---");
+            // println!("{:?}", board_clone.state);
+            return;
+        }
     }
 }
 

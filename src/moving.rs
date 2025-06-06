@@ -3,7 +3,7 @@ use crate::position::Position;
 use crate::search_data::{CheckPath, PinState};
 use std::fmt::{Debug, Display};
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
 pub enum MoveType {
     Normal(PieceType),
     Promotion(PieceType),
@@ -23,7 +23,7 @@ pub struct Unmove<'a> {
     pub check_path: CheckPath,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
 pub struct Move {
     pub move_type: MoveType,
     pub from: Position,

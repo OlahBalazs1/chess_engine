@@ -26,7 +26,7 @@ impl Offset {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
 #[repr(transparent)]
 pub struct Position {
     pub index: u8,

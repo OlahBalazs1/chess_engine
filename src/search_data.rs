@@ -97,6 +97,7 @@ impl CheckPath {
     ) -> Self {
         let mut path = CheckPath::None;
         let bitboards = board.side_bitboard(side);
+        let allies = board.side_bitboard(side.opposite()).combined();
         let enemies = bitboards.combined();
 
         for i in KNIGHT_MASKS[*king_pos as usize].parts.iter().copied() {
@@ -116,7 +117,7 @@ impl CheckPath {
         }
         let diagonal_attackers = bitboards.state[BISHOP] | bitboards.state[QUEEN];
 
-        let diagonal_data = magic_mover.get_bishop(king_pos, diagonal_attackers);
+        let diagonal_data = magic_mover.get_bishop(king_pos, allies | enemies | diagonal_attackers);
         let diagonals = diagonal_data
             .possible_takes()
             .filter(|i| diagonal_attackers & i.as_mask() != 0);
@@ -128,7 +129,7 @@ impl CheckPath {
         }
 
         let parallel_attackers = bitboards.state[ROOK] | bitboards.state[QUEEN];
-        let parallel_data = magic_mover.get_rook(king_pos, parallel_attackers);
+        let parallel_data = magic_mover.get_rook(king_pos, allies | enemies | parallel_attackers);
         let parallels = parallel_data
             .possible_takes()
             .filter(|i| parallel_attackers & i.as_mask() != 0);

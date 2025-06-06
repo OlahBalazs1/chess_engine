@@ -4,7 +4,7 @@ use std::{
     ops::Deref,
 };
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
 #[repr(u8)]
 pub enum PieceType {
     Pawn = 0,
@@ -22,7 +22,7 @@ impl PieceType {
 use PieceType::*;
 use Side::*;
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Piece {
     pub side: Side,
     pub piece_type: PieceType,
@@ -90,7 +90,7 @@ impl Piece {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
 #[repr(u8)]
 pub enum Side {
     White = 0,

@@ -252,16 +252,15 @@ fn slide_blocker_possible_moves<const N: usize>(
                     last_non_take = Some(next);
                 } else {
                     moves.add_take(next);
-                    if let Some(normal) = last_non_take {
+                    if let Some(normal) = last_non_take.take() {
                         moves.add_normal(normal);
                     }
                     break;
                 }
-            } else {
-                if let Some(end) = last_non_take {
-                    moves.add_end(end);
-                }
             }
+        }
+        if let Some(end) = last_non_take.take() {
+            moves.add_end(end);
         }
     }
 

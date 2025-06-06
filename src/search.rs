@@ -75,18 +75,15 @@ fn find_pawn_unrestricted(
         Side::White => 1,
         Side::Black => -1,
     };
-
-    let data = &PAWN_TAKE_MASKS[*pos as usize];
-    *attack_bits |= if yo == 1 {
-        data.sum << 8
-    } else {
-        data.sum >> 8
-    };
-    for i in data.positions.iter().filter_map(|i| pos.with_y(**i)) {
-        if enemies & i.as_mask() != 0 {
-            gen_pawn_moves(moves, pos, i, all_square_data.get(pos));
-        } else if ep_square.is_some_and(|ep| ep == i) {
-            moves.push(Move::new(pos, i, MoveType::EnPassant, None));
+    if let Some(can_take) = pos.with_offset(Offset::new(0, yo)) {
+        let data = &PAWN_TAKE_MASKS[*can_take as usize];
+        *attack_bits |= data.sum;
+        for i in data.positions.iter() {
+            if enemies & i.as_mask() != 0 {
+                gen_pawn_moves(moves, pos, *i, all_square_data.get(*i));
+            } else if ep_square.is_some_and(|ep| ep == *i) {
+                moves.push(Move::new(pos, *i, MoveType::EnPassant, None));
+            }
         }
     }
 
@@ -133,17 +130,11 @@ fn find_pawn_restricted(
     if let Some(can_take) = pos.with_offset(Offset::new(0, yo)) {
         let data = &PAWN_TAKE_MASKS[*can_take as usize];
         *attack_bits |= data.sum;
-        // let data = &m[*pos as usize];
-        // *attack_bits |= if yo == 1 {
-        //     data.sum << 8
-        // } else {
-        //     data.sum >> 8
-        // };
-        for i in data.positions.iter().filter_map(|i| pos.with_y(**i)) {
+        for i in data.positions.iter() {
             if must_block & i.as_mask() != 0 && enemies & i.as_mask() != 0 {
-                gen_pawn_moves(moves, pos, i, all_square_data.get(i));
-            } else if ep_square.is_some_and(|ep| ep == i) {
-                moves.push(Move::new(pos, i, MoveType::EnPassant, None));
+                gen_pawn_moves(moves, pos, *i, all_square_data.get(*i));
+            } else if ep_square.is_some_and(|ep| ep == *i) {
+                moves.push(Move::new(pos, *i, MoveType::EnPassant, None));
             }
         }
     }
@@ -234,7 +225,7 @@ pub fn find_knight(
                             pos,
                             i,
                             MoveType::Normal(PieceType::Knight),
-                            all_square_data.get(pos),
+                            all_square_data.get(i),
                         )
                     })
             })
@@ -353,7 +344,7 @@ pub fn find_rook_with_magic(
             .normal
             .iter()
             .copied()
-            .filter(|i| pin_state & i.as_mask() != 0)
+            .filter(|i| must_block & i.as_mask() != 0)
             .map(|i| Move::new(pos, i, MoveType::Normal(Rook), None));
 
         let takes = data
@@ -412,7 +403,7 @@ pub fn find_bishop_with_magic(
             .normal
             .iter()
             .copied()
-            .map(|i| Move::new(pos, i, MoveType::Normal(Bishop), all_square_data.get(i)));
+            .map(|i| Move::new(pos, i, MoveType::Normal(Bishop), None));
 
         let takes = data
             .possible_takes()
@@ -527,9 +518,7 @@ fn queen_unrestricted(
         .copied()
         .map(|i| Move::new(pos, i, MoveType::Normal(PieceType::Queen), None));
     let takes = rook_data
-        .takes
-        .iter()
-        .copied()
+        .possible_takes()
         .filter(|i| allies & i.as_mask() == 0)
         .map(|i| {
             Move::new(
@@ -550,9 +539,7 @@ fn queen_unrestricted(
         .map(|i| Move::new(pos, i, MoveType::Normal(PieceType::Queen), None));
 
     let takes = bishop_data
-        .takes
-        .iter()
-        .copied()
+        .possible_takes()
         .filter(|i| allies & i.as_mask() == 0)
         .map(|i| {
             Move::new(
@@ -585,9 +572,7 @@ fn queen_restricted(
         .filter(|i| must_block & i.as_mask() != 0)
         .map(|i| Move::new(pos, i, MoveType::Normal(PieceType::Queen), None));
     let takes = rook_data
-        .takes
-        .iter()
-        .copied()
+        .possible_takes()
         .filter(|i| allies & i.as_mask() == 0 && must_block & i.as_mask() != 0)
         .map(|i| {
             Move::new(
@@ -612,9 +597,7 @@ fn queen_restricted(
 
     let takes = takes.chain(
         bishop_data
-            .takes
-            .iter()
-            .copied()
+            .possible_takes()
             .filter(|i| allies & i.as_mask() == 0 && must_block & i.as_mask() != 0)
             .map(|i| {
                 Move::new(
