@@ -5,11 +5,11 @@ use crate::{
     position::Position,
 };
 use rand::prelude::*;
-use std::cell::LazyCell;
+use std::sync::LazyLock;
 use PieceType::*;
 
-pub const ZOBRIST_RANDOM: LazyCell<ZobristRandom> =
-    LazyCell::new(|| ZobristRandom::seeded_init(b"Lorem ipsum dolor sit amet nisi."));
+pub static ZOBRIST_RANDOM: LazyLock<ZobristRandom> =
+    LazyLock::new(|| ZobristRandom::seeded_init(b"Lorem ipsum dolor sit amet nisi."));
 
 pub struct ZobristRandom {
     piece_boards: [[u64; 64]; 12],
@@ -74,30 +74,12 @@ impl ZobristRandom {
 
     pub fn get_value(&self, piece: Piece, pos: Position) -> u64 {
         use Side::*;
-        match piece {
-            Piece {
-                side: White,
-                piece_type: piece,
-            } => match piece {
-                Pawn => self.piece_boards[0][*pos as usize],
-                Rook => self.piece_boards[1][*pos as usize],
-                Knight => self.piece_boards[2][*pos as usize],
-                Bishop => self.piece_boards[3][*pos as usize],
-                Queen => self.piece_boards[4][*pos as usize],
-                King => self.piece_boards[5][*pos as usize],
-            },
-            Piece {
-                side: Black,
-                piece_type: piece,
-            } => match piece {
-                Pawn => self.piece_boards[6][*pos as usize],
-                Rook => self.piece_boards[7][*pos as usize],
-                Knight => self.piece_boards[8][*pos as usize],
-                Bishop => self.piece_boards[9][*pos as usize],
-                Queen => self.piece_boards[10][*pos as usize],
-                King => self.piece_boards[11][*pos as usize],
-            },
-        }
+        let index = (piece.role() as u8)
+            + match piece.side() {
+                White => 0,
+                Black => 6,
+            };
+        self.piece_boards[index as usize][*pos as usize]
     }
     pub fn get_castle_right<const N: usize>(&self, side: Side) -> u64 {
         match side {

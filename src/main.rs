@@ -1,12 +1,13 @@
 use std::{
     alloc::System,
     hint::{black_box, unreachable_unchecked},
+    sync::LazyLock,
     time::SystemTime,
 };
 
-use board::SearchBoard;
+use board::{BoardState, SearchBoard};
 use engine::COUNTER;
-use magic_bitboards::print_bits;
+use magic_bitboards::{print_bits, MAGIC_MOVER};
 use position::Position;
 use search_data::{CheckPath, PinState};
 
@@ -31,15 +32,21 @@ fn main() {
     // let board = SearchBoard::default();
     // let (_, _) = board.find_all_moves();
     //
-    const DEPTH: usize = 4;
+    // println!("{}", std::mem::size_of::<BoardState>())
+    let _ = LazyLock::force(&MAGIC_MOVER);
 
-    // let start = SystemTime::now();
-    println!("{:?}", engine::perft::<DEPTH>());
-    // println!("elapsed: {}", start.elapsed().unwrap().as_millis());
+    const DEPTH: usize = 5;
+
     let counted;
     unsafe {
         counted = COUNTER;
     }
-    println!("{}", counted)
-    // println!("{:?}", engine::perft_copy::<DEPTH>());
+    for _ in 0..3 {
+        let start = SystemTime::now();
+        println!("copy_make: {:?}", engine::perft_copy::<DEPTH>());
+        println!("elapsed: {}", start.elapsed().unwrap().as_millis());
+        let start = SystemTime::now();
+        println!("unmake: {:?}", engine::perft::<DEPTH>());
+        println!("elapsed: {}", start.elapsed().unwrap().as_millis());
+    }
 }

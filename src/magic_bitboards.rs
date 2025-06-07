@@ -248,7 +248,9 @@ fn slide_blocker_possible_moves<const N: usize>(
         for i in 1..7 {
             if let Some(next) = start_pos.with_offset(offset.mul(i).unwrap()) {
                 if blocker_config & next.as_mask() == 0 {
-                    moves.add_normal(next);
+                    if let Some(normal) = last_non_take.take() {
+                        moves.add_normal(normal);
+                    }
                     last_non_take = Some(next);
                 } else {
                     moves.add_take(next);

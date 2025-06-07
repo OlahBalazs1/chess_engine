@@ -2,7 +2,7 @@ use rand::seq::IndexedRandom;
 
 use crate::board::{Bitboards, BoardRepr, BoardState};
 use crate::piece::Piece;
-use crate::search_data::CheckPath;
+use crate::search_data::{CheckPath, PinState};
 use crate::search_masks::{SingularData, KING_MASKS, KNIGHT_MASKS, PAWN_TAKE_MASKS};
 use std::ops::{Deref, Index, Range};
 use std::sync::Arc;
@@ -17,15 +17,22 @@ use crate::{
 };
 use PieceType::*;
 
-pub fn find_pawn(moves: &mut Vec<Move>, attack_bits: &mut u64, pos: Position, state: &SearchBoard) {
+pub fn find_pawn(
+    moves: &mut Vec<Move>,
+    attack_bits: &mut u64,
+    pos: Position,
+    state: &SearchBoard,
+    pin_state: &PinState,
+    check_paths: &CheckPath,
+) {
     let side = state.side();
     let allies = state.side_bitboards(side).combined();
     let enemies = state.side_bitboards(side.opposite()).combined();
     let all_square_data = &state.state.board;
-    let pin_state = state.pin_state.choose_relevant(pos);
-    let check_path = match state.check_paths {
+    let pin_state = pin_state.choose_relevant(pos);
+    let check_path = match check_paths {
         CheckPath::None => 0,
-        CheckPath::Blockable(i) => i,
+        CheckPath::Blockable(i) => *i,
         CheckPath::Multiple => return (),
     };
     let must_block = match (pin_state, check_path) {
@@ -183,16 +190,18 @@ pub fn find_knight(
     attack_bits: &mut u64,
     pos: Position,
     state: &SearchBoard,
+    pin_state: &PinState,
+    check_paths: &CheckPath,
 ) {
     let side = state.side();
     let allies = state.side_bitboards(side).combined();
     let all_square_data = &state.state.board;
 
-    if state.pin_state.choose_relevant(pos) != 0 {
+    if pin_state.choose_relevant(pos) != 0 {
         return;
     }
 
-    match state.check_paths {
+    match check_paths {
         CheckPath::None => {
             *attack_bits |= KNIGHT_MASKS[*pos as usize].sum;
             moves.extend({
@@ -235,10 +244,16 @@ pub fn find_knight(
     }
 }
 
-pub fn find_king(moves: &mut Vec<Move>, attack_bits: &mut u64, pos: Position, state: &SearchBoard) {
+pub fn find_king(
+    moves: &mut Vec<Move>,
+    attack_bits: &mut u64,
+    pos: Position,
+    state: &SearchBoard,
+    check_paths: &CheckPath,
+    attacked_squares: u64,
+) {
     let side = state.side();
     let allies = state.side_bitboards(side).combined();
-    let attacked_squares = state.attacked;
     let enemies = state.side_bitboards(side.opposite()).combined();
     let castle_rights = state.state.side_castle_rights(side);
     let all_square_data = &state.state.board;
@@ -262,7 +277,7 @@ pub fn find_king(moves: &mut Vec<Move>, attack_bits: &mut u64, pos: Position, st
             }),
     );
 
-    match state.check_paths {
+    match check_paths {
         CheckPath::None => {
             let short = 0b110 << side.home_y();
             let long = 0x60 << side.home_y();
@@ -289,8 +304,23 @@ pub fn find_king(moves: &mut Vec<Move>, attack_bits: &mut u64, pos: Position, st
     }
 }
 
-pub fn find_rook(moves: &mut Vec<Move>, attack_bits: &mut u64, pos: Position, state: &SearchBoard) {
-    find_rook_with_magic(moves, attack_bits, pos, state, &*MAGIC_MOVER)
+pub fn find_rook(
+    moves: &mut Vec<Move>,
+    attack_bits: &mut u64,
+    pos: Position,
+    state: &SearchBoard,
+    pin_state: &PinState,
+    check_paths: &CheckPath,
+) {
+    find_rook_with_magic(
+        moves,
+        attack_bits,
+        pos,
+        state,
+        pin_state,
+        check_paths,
+        &*MAGIC_MOVER,
+    )
 }
 
 pub fn find_rook_with_magic(
@@ -298,16 +328,18 @@ pub fn find_rook_with_magic(
     attack_bits: &mut u64,
     pos: Position,
     state: &SearchBoard,
+    pin_state: &PinState,
+    check_paths: &CheckPath,
     magic_mover: &MagicMover,
 ) {
     let side = state.side();
     let allies = state.side_bitboards(side).combined();
     let all_pieces = state.side_bitboards(side.opposite()).combined() | allies;
     let all_square_data = &state.state.board;
-    let pin_state = state.pin_state.choose_relevant(pos);
-    let check_path = match state.check_paths {
+    let pin_state = pin_state.choose_relevant(pos);
+    let check_path = match check_paths {
         CheckPath::None => 0,
-        CheckPath::Blockable(i) => i,
+        CheckPath::Blockable(i) => *i,
         CheckPath::Multiple => return (),
     };
     let must_block = match (pin_state, check_path) {
@@ -367,8 +399,18 @@ pub fn find_bishop(
     attack_bits: &mut u64,
     pos: Position,
     state: &SearchBoard,
+    pin_state: &PinState,
+    check_paths: &CheckPath,
 ) {
-    find_bishop_with_magic(moves, attack_bits, pos, state, &*MAGIC_MOVER)
+    find_bishop_with_magic(
+        moves,
+        attack_bits,
+        pos,
+        state,
+        pin_state,
+        check_paths,
+        &*MAGIC_MOVER,
+    )
 }
 
 pub fn find_bishop_with_magic(
@@ -376,16 +418,18 @@ pub fn find_bishop_with_magic(
     attack_bits: &mut u64,
     pos: Position,
     state: &SearchBoard,
+    pin_state: &PinState,
+    check_paths: &CheckPath,
     magic_mover: &MagicMover,
 ) {
     let side = state.side();
     let allies = state.side_bitboards(side).combined();
     let all_pieces = state.side_bitboards(side.opposite()).combined() | allies;
     let all_square_data = &state.state.board;
-    let pin_state = state.pin_state.choose_relevant(pos);
-    let check_path = match state.check_paths {
+    let pin_state = pin_state.choose_relevant(pos);
+    let check_path = match check_paths {
         CheckPath::None => 0,
-        CheckPath::Blockable(i) => i,
+        CheckPath::Blockable(i) => *i,
         CheckPath::Multiple => return (),
     };
 
@@ -447,8 +491,18 @@ pub fn find_queen(
     attack_bits: &mut u64,
     pos: Position,
     state: &SearchBoard,
+    pin_state: &PinState,
+    check_paths: &CheckPath,
 ) {
-    find_queen_with_magic(moves, attack_bits, pos, state, &*MAGIC_MOVER)
+    find_queen_with_magic(
+        moves,
+        attack_bits,
+        pos,
+        state,
+        pin_state,
+        check_paths,
+        &*MAGIC_MOVER,
+    )
 }
 
 pub fn find_queen_with_magic(
@@ -456,22 +510,24 @@ pub fn find_queen_with_magic(
     attack_bits: &mut u64,
     pos: Position,
     state: &SearchBoard,
+    pin_state: &PinState,
+    check_paths: &CheckPath,
     magic_mover: &MagicMover,
 ) {
     let side = state.side();
     let allies = state.side_bitboards(side).combined();
     let all_pieces = state.side_bitboards(side.opposite()).combined() | allies;
     let all_square_data = &state.state.board;
-    let pin_state = state.pin_state.choose_relevant(pos);
-    let check_path = match state.check_paths {
+    let parsed_pin = pin_state.choose_relevant(pos);
+    let check_path = match check_paths {
         CheckPath::None => 0,
-        CheckPath::Blockable(i) => i,
+        CheckPath::Blockable(i) => *i,
         CheckPath::Multiple => return (),
     };
-    let must_block = match (pin_state, check_path) {
+    let must_block = match (parsed_pin, check_path) {
         (0, 0) => 0,
         (0, 1..) => check_path,
-        (1.., 0) => pin_state,
+        (1.., 0) => parsed_pin,
         _ => return,
     };
     if must_block == 0 {
@@ -483,7 +539,6 @@ pub fn find_queen_with_magic(
             all_pieces,
             magic_mover,
             all_square_data,
-            side,
         );
     } else {
         queen_restricted(
@@ -495,7 +550,6 @@ pub fn find_queen_with_magic(
             magic_mover,
             all_square_data,
             must_block,
-            side,
         );
     }
 }
@@ -508,7 +562,6 @@ fn queen_unrestricted(
     all_pieces: u64,
     magic_mover: &MagicMover,
     all_square_data: &BoardRepr,
-    side: Side,
 ) {
     let rook_data = magic_mover.get_rook(pos, all_pieces);
     *attack_bits |= rook_data.bitboard;
@@ -561,7 +614,6 @@ fn queen_restricted(
     magic_mover: &MagicMover,
     all_square_data: &BoardRepr,
     must_block: u64,
-    side: Side,
 ) {
     let rook_data = magic_mover.get_rook(pos, all_pieces);
     *attack_bits |= rook_data.bitboard;

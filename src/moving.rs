@@ -1,3 +1,4 @@
+use crate::board::SearchBoard;
 use crate::piece::{Piece, PieceType};
 use crate::position::Position;
 use crate::search_data::{CheckPath, PinState};
@@ -17,10 +18,20 @@ pub struct Unmove<'a> {
     pub white_castling: (bool, bool),
     pub black_castling: (bool, bool),
     pub zobrist: u64,
-    pub attacked_squares: u64,
     pub halfmove_clock: u8,
-    pub pin_state: PinState,
-    pub check_path: CheckPath,
+}
+
+impl<'a> Unmove<'a> {
+    pub fn new(mov: &'a Move, state: &SearchBoard) -> Self {
+        Self {
+            mov,
+            en_passant_square: state.state.en_passant_square,
+            white_castling: state.state.white_castling,
+            black_castling: state.state.black_castling,
+            zobrist: state.state.zobrist,
+            halfmove_clock: state.halfmove_clock,
+        }
+    }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
