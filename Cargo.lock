@@ -25,6 +25,7 @@ name = "chess_engine"
 version = "0.1.0"
 dependencies = [
  "array-init",
+ "owo-colors",
  "rand",
  "rayon",
 ]
@@ -77,6 +78,12 @@ name = "libc"
 version = "0.2.171"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c19937216e9d3aa9956d9bb8dfc0b0c8beb6058fc4f7a4dc4d850edf86a237d6"
+
+[[package]]
+name = "owo-colors"
+version = "4.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "26995317201fa17f3656c36716aed4a7c81743a9634ac4c99c0eeda495db0cec"
 
 [[package]]
 name = "ppv-lite86"

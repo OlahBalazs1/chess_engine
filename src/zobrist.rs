@@ -72,15 +72,16 @@ impl ZobristRandom {
         state.zobrist = hash
     }
 
+    #[inline(always)]
     pub fn get_value(&self, piece: Piece, pos: Position) -> u64 {
-        use Side::*;
         let index = (piece.role() as u8)
             + match piece.side() {
-                White => 0,
-                Black => 6,
+                Side::White => 0,
+                Side::Black => 6,
             };
         self.piece_boards[index as usize][*pos as usize]
     }
+    #[inline]
     pub fn get_castle_right<const N: usize>(&self, side: Side) -> u64 {
         match side {
             Side::White => self.white_castle_rights[N],
@@ -98,18 +99,23 @@ pub trait ZobristHash {
 }
 
 impl ZobristHash for u64 {
+    #[inline]
     fn update(&mut self, piece: Piece, pos: Position) {
         *self ^= ZOBRIST_RANDOM.get_value(piece, pos);
     }
+    #[inline]
     fn update_short_castle(&mut self, side: Side) {
         *self ^= ZOBRIST_RANDOM.get_castle_right::<1>(side)
     }
+    #[inline]
     fn update_long_castle(&mut self, side: Side) {
         *self ^= ZOBRIST_RANDOM.get_castle_right::<0>(side)
     }
+    #[inline]
     fn switch_side(&mut self) {
         *self ^= ZOBRIST_RANDOM.black;
     }
+    #[inline]
     fn update_ep_square(&mut self, side: Side, before: Option<Position>, after: Option<Position>) {
         if let Some(before) = before {
             self.update(

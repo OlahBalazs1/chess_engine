@@ -87,3 +87,9 @@ pub static KING_MASKS: LazyLock<[SingularData; 64]> =
     LazyLock::new(|| array_init(SingularData::king_at_index));
 pub static PAWN_TAKE_MASKS: LazyLock<[SingularData; 64]> =
     LazyLock::new(|| array_init(SingularData::pawn_takes));
+
+pub fn init_masks() {
+    let _ = LazyLock::force(&KNIGHT_MASKS);
+    let _ = LazyLock::force(&KING_MASKS);
+    let _ = LazyLock::force(&PAWN_TAKE_MASKS);
+}

@@ -1,7 +1,7 @@
 use std::pin::Pin;
 
 use crate::{
-    board::{BoardState, SearchBoard, BISHOP, KNIGHT, QUEEN, ROOK},
+    board::{BoardState, SearchBoard, BISHOP, KNIGHT, PAWN, QUEEN, ROOK},
     magic_bitboards::{print_bits, MagicData, MagicMover, MAGIC_MOVER},
     piece::Side,
     position::Position,
@@ -85,6 +85,12 @@ macro_rules! update_checkpath {
     };
 }
 impl CheckPath {
+    pub fn is_check(&self) -> bool {
+        match self {
+            CheckPath::None => false,
+            _ => true,
+        }
+    }
     pub fn find(board: &BoardState, king_pos: Position, side: Side) -> Self {
         CheckPath::find_with(board, king_pos, side, &*MAGIC_MOVER)
     }
@@ -110,8 +116,8 @@ impl CheckPath {
             Side::Black => |i| i >> 8,
         };
 
-        for i in KNIGHT_MASKS[*king_pos as usize].parts.iter().copied() {
-            if bitboards.state[KNIGHT] & yo(i) != 0 {
+        for i in PAWN_TAKE_MASKS[*king_pos as usize].parts.iter().copied() {
+            if bitboards.state[PAWN] & yo(i) != 0 {
                 update_checkpath!(path, yo(i))
             }
         }
@@ -150,6 +156,10 @@ impl PinState {
     pub fn find(state: &BoardState, king_pos: Position) -> Self {
         PinState::find_with(state, king_pos, &*MAGIC_MOVER)
     }
+
+    pub fn combined(&self) -> u64 {
+        self.diagonal_1 | self.diagonal_2 | self.x_aligned | self.y_aligned
+    }
     fn find_with(state: &BoardState, king_pos: Position, magic_mover: &MagicMover) -> Self {
         let ally_bitboards = state.side_bitboard(state.side);
         let enemy_bitboards = state.side_bitboard(state.side.opposite());
@@ -157,13 +167,16 @@ impl PinState {
         let king_mask = king_pos.as_mask();
 
         let friendlies = ally_bitboards.combined();
+        let enemies = ally_bitboards.combined();
         let diagonal_attackers = enemy_bitboards.state[BISHOP] | enemy_bitboards.state[QUEEN];
         let parallel_attackers = enemy_bitboards.state[ROOK] | enemy_bitboards.state[QUEEN];
 
-        let mut can_en_passant = true;
-
-        let surrounding_friendlies = magic_mover.get_rook(king_pos, friendlies).bitboard
-            | magic_mover.get_bishop(king_pos, friendlies).bitboard;
+        let surrounding_friendlies = magic_mover
+            .get_rook(king_pos, friendlies | enemies)
+            .bitboard
+            | magic_mover
+                .get_bishop(king_pos, friendlies | enemies)
+                .bitboard;
 
         let (diagonal_1, diagonal_2) = {
             let targets = friendlies & !(surrounding_friendlies) | enemy_bitboards.combined();
@@ -172,22 +185,22 @@ impl PinState {
             let mut casts_2: u64 = 0;
 
             for i in cast.possible_takes() {
-                if let Some(ep) = state.en_passant_square.filter(|_| can_en_passant) {
-                    if ep == i {
-                        let ep_cast = magic_mover.get_bishop(king_pos, targets & !(i.as_mask()));
-                        for i in ep_cast.possible_takes() {
-                            if diagonal_attackers & i.as_mask() != 0 {
-                                if magic_mover.get_bishop(i, king_mask).bitboard
-                                    & ep_cast.bitboard
-                                    & ep.as_mask()
-                                    != 0
-                                {
-                                    can_en_passant = false
-                                }
-                            }
-                        }
-                    }
-                }
+                // if let Some(ep) = state.en_passant_square.filter(|_| can_en_passant) {
+                //     if ep == i {
+                //         let ep_cast = magic_mover.get_bishop(king_pos, targets & !(i.as_mask()));
+                //         for i in ep_cast.possible_takes() {
+                //             if diagonal_attackers & i.as_mask() != 0 {
+                //                 if magic_mover.get_bishop(i, king_mask).bitboard
+                //                     & ep_cast.bitboard
+                //                     & ep.as_mask()
+                //                     != 0
+                //                 {
+                //                     can_en_passant = false
+                //                 }
+                //             }
+                //         }
+                //     }
+                // }
                 if diagonal_attackers & i.as_mask() != 0 {
                     if (i.x() < king_pos.x() && i.y() < king_pos.y())
                         || (i.x() > king_pos.x() && i.y() > king_pos.y())
@@ -209,22 +222,22 @@ impl PinState {
             let mut y_casts: u64 = 0;
 
             for i in cast.possible_takes() {
-                if let Some(ep) = state.en_passant_square.filter(|_| can_en_passant) {
-                    if ep == i {
-                        let ep_cast = magic_mover.get_rook(king_pos, targets & !(i.as_mask()));
-                        for i in ep_cast.possible_takes() {
-                            if parallel_attackers & i.as_mask() != 0 {
-                                if magic_mover.get_bishop(i, king_mask).bitboard
-                                    & ep_cast.bitboard
-                                    & ep.as_mask()
-                                    != 0
-                                {
-                                    can_en_passant = false
-                                }
-                            }
-                        }
-                    }
-                }
+                // if let Some(ep) = state.en_passant_square.filter(|_| can_en_passant) {
+                //     if ep == i {
+                //         let ep_cast = magic_mover.get_rook(king_pos, targets & !(i.as_mask()));
+                //         for i in ep_cast.possible_takes() {
+                //             if parallel_attackers & i.as_mask() != 0 {
+                //                 if magic_mover.get_bishop(i, king_mask).bitboard
+                //                     & ep_cast.bitboard
+                //                     & ep.as_mask()
+                //                     != 0
+                //                 {
+                //                     can_en_passant = false
+                //                 }
+                //             }
+                //         }
+                //     }
+                // }
                 if parallel_attackers & i.as_mask() != 0 {
                     if i.x() == king_pos.x() {
                         x_casts |= (magic_mover.get_rook(i, king_mask).bitboard & cast.bitboard)
@@ -243,7 +256,7 @@ impl PinState {
             diagonal_2,
             x_aligned,
             y_aligned,
-            can_en_passant,
+            can_en_passant: true,
         }
     }
 }

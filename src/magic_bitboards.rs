@@ -358,3 +358,7 @@ pub fn print_bits(i: u64) {
     }
     println!("")
 }
+
+pub fn init_magic_mover() {
+    let _ = LazyLock::force(&MAGIC_MOVER);
+}

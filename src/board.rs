@@ -1,7 +1,8 @@
+use std::cell::LazyCell;
 use std::fmt::{Debug, Display};
 use std::hash::Hash;
 use std::mem;
-use std::ops::Index;
+use std::ops::{Index, IndexMut};
 use std::pin::Pin;
 
 use crate::magic_bitboards::{print_bits, MAGIC_MOVER};
@@ -80,10 +81,9 @@ impl SearchBoard {
         pin_state: PinState,
         check_paths: CheckPath,
         attacked_squares: u64,
-    ) -> (Vec<Move>, u64) {
+    ) -> Vec<Move> {
         use crate::search::*;
         let mut moves = Vec::with_capacity(128);
-        let mut attack_update = 0;
 
         let pieces = self
             .state
@@ -101,54 +101,12 @@ impl SearchBoard {
         for (pos, piece) in pieces {
             if let Some(piece) = piece {
                 match piece.piece_type {
-                    Pawn => find_pawn(
-                        &mut moves,
-                        &mut attack_update,
-                        pos,
-                        self,
-                        &pin_state,
-                        &check_paths,
-                    ),
-                    Rook => find_rook(
-                        &mut moves,
-                        &mut attack_update,
-                        pos,
-                        self,
-                        &pin_state,
-                        &check_paths,
-                    ),
-                    Knight => find_knight(
-                        &mut moves,
-                        &mut attack_update,
-                        pos,
-                        self,
-                        &pin_state,
-                        &check_paths,
-                    ),
-                    Bishop => find_bishop(
-                        &mut moves,
-                        &mut attack_update,
-                        pos,
-                        self,
-                        &pin_state,
-                        &check_paths,
-                    ),
-                    Queen => find_queen(
-                        &mut moves,
-                        &mut attack_update,
-                        pos,
-                        self,
-                        &pin_state,
-                        &check_paths,
-                    ),
-                    King => find_king(
-                        &mut moves,
-                        &mut attack_update,
-                        pos,
-                        self,
-                        &check_paths,
-                        attacked_squares,
-                    ),
+                    Pawn => find_pawn(&mut moves, pos, self, &pin_state, &check_paths),
+                    Rook => find_rook(&mut moves, pos, self, &pin_state, &check_paths),
+                    Knight => find_knight(&mut moves, pos, self, &pin_state, &check_paths),
+                    Bishop => find_bishop(&mut moves, pos, self, &pin_state, &check_paths),
+                    Queen => find_queen(&mut moves, pos, self, &pin_state, &check_paths),
+                    King => find_king(&mut moves, pos, self, &check_paths, attacked_squares),
                 };
             }
         }
@@ -157,24 +115,20 @@ impl SearchBoard {
         //     self.find_moves_at(&mut moves, &mut attacked_squares, pos);
         // }
 
-        (moves, attack_update)
+        moves
     }
 
     pub fn make<'a>(&mut self, mov: &'a Move) {
         let side = self.state.side;
 
         let mut increment_halfmove = true;
-
         let mut updated_ep = None;
 
-        self.state
-            .zobrist
-            .update(mov.piece_type().with_side(side), mov.from());
-        self.state
-            .zobrist
-            .update(mov.piece_type().with_side(side), mov.to());
-
         let piece = mov.piece_type();
+
+        self.state.zobrist.update(piece.with_side(side), mov.from());
+        self.state.zobrist.update(piece.with_side(side), mov.to());
+
         *allies!(side, self).get_bitboard_mut(piece) ^= mov.from().as_mask() | mov.to().as_mask();
         self.state.board.board[*mov.to() as usize] =
             mem::replace(&mut self.state.board.board[*mov.from() as usize], None);
@@ -245,7 +199,7 @@ impl SearchBoard {
 
         self.state.zobrist.switch_side();
 
-        if mov.piece_type() == PieceType::King {
+        if piece == PieceType::King {
             *self.side_king_mut(side) = mov.to;
             if self.state.side_castle_rights(side).0 {
                 side_castle_rights!(side, self).0 = false;
@@ -351,6 +305,19 @@ pub struct Bitboards {
     // Pawn, rook, knight, bishop, queen, king
     pub state: [u64; 6],
 }
+
+impl Index<usize> for Bitboards {
+    type Output = u64;
+    fn index(&self, index: usize) -> &Self::Output {
+        &self.state[index]
+    }
+}
+
+impl IndexMut<usize> for Bitboards {
+    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
+        &mut self.state[index]
+    }
+}
 impl Bitboards {
     pub fn get_containing_bitboard_mut(&mut self, pos: Position) -> Option<&mut u64> {
         for i in self.state.iter_mut() {
@@ -389,12 +356,14 @@ impl Bitboards {
         self.state[piece_type as usize]
     }
 
+    #[inline]
     pub fn combined(&self) -> u64 {
-        let mut sum = 0;
-        for i in self.state {
-            sum |= i
-        }
-        sum
+        self.state[0]
+            | self.state[1]
+            | self.state[2]
+            | self.state[3]
+            | self.state[4]
+            | self.state[5]
     }
 
     pub fn pawn_mut(&mut self) -> &mut u64 {
@@ -475,6 +444,35 @@ pub struct BoardState {
 }
 
 impl BoardState {
+    pub fn can_be_taken(&self, pos: Position, enemy: Side) -> bool {
+        let enemies = self.side_bitboard(enemy);
+        let allies = self.side_bitboard(enemy.opposite()).combined();
+
+        let pawn_lookup_pos = match self.side {
+            Side::White => pos.add_x(1).unwrap(),
+            Side::Black => pos.sub_x(1).unwrap(),
+        };
+
+        if KNIGHT_MASKS[*pos as usize].sum & enemies[KNIGHT] != 0
+            || PAWN_TAKE_MASKS[*pawn_lookup_pos as usize].sum & enemies[PAWN] != 0
+            || KING_MASKS[*pos as usize].sum & enemies[KING] != 0
+        {
+            return true;
+        } else if MAGIC_MOVER
+            .get_rook(pos, enemies.combined() | allies)
+            .bitboard
+            & (enemies[ROOK] | enemies[QUEEN])
+            != 0
+            || MAGIC_MOVER
+                .get_bishop(pos, enemies.combined() | allies)
+                .bitboard
+                & (enemies[BISHOP] | enemies[QUEEN])
+                != 0
+        {
+            return true;
+        }
+        false
+    }
     pub fn legal_data(&self) -> (PinState, CheckPath) {
         let side = self.side;
         (
@@ -512,48 +510,43 @@ impl BoardState {
         }
         panic!("No king found")
     }
-    pub fn get_attacked(&self, side: Side) -> u64 {
+    pub fn get_attacked(&self, enemy: Side) -> u64 {
         let mut attacked_squares = 0;
 
-        let pieces = self.board.board.iter().enumerate().map(|(pos, piece)| {
-            (
-                Position::from_index(pos as u8),
-                piece.and_then(|piece| piece.filter_side(side)),
-            )
-        });
+        let all = self.white.combined() | self.black.combined();
+
+        let pieces = self
+            .board
+            .board
+            .iter()
+            .enumerate()
+            .map(|(pos, piece)| {
+                (
+                    Position::from_index(pos as u8),
+                    piece.and_then(|p| p.filter_side(enemy)),
+                )
+            })
+            .filter(|(_, piece)| piece.is_some())
+            .map(|(pos, piece)| (pos, piece.unwrap()));
 
         for (pos, piece) in pieces {
-            if let Some(piece) = piece {
-                attacked_squares |= match piece.piece_type {
-                    Pawn => {
-                        PAWN_TAKE_MASKS[match side {
-                            Side::White => *pos + 8,
-                            Side::Black => *pos - 8,
-                        } as usize]
-                            .sum
-                    }
-                    Rook => {
-                        MAGIC_MOVER
-                            .get_rook(pos, self.side_bitboard(side).combined())
-                            .bitboard
-                    }
-                    Knight => KNIGHT_MASKS[*pos as usize].sum,
-                    Bishop => {
-                        MAGIC_MOVER
-                            .get_bishop(pos, self.side_bitboard(side).combined())
-                            .bitboard
-                    }
-                    Queen => {
-                        MAGIC_MOVER
-                            .get_rook(pos, self.side_bitboard(side).combined())
-                            .bitboard
-                            | MAGIC_MOVER
-                                .get_bishop(pos, self.side_bitboard(side).combined())
-                                .bitboard
-                    }
-                    King => KING_MASKS[*pos as usize].sum,
-                };
-            }
+            attacked_squares |= match piece.piece_type {
+                Pawn => {
+                    PAWN_TAKE_MASKS[match enemy {
+                        Side::White => *pos + 8,
+                        Side::Black => *pos - 8,
+                    } as usize]
+                        .sum
+                }
+                Rook => MAGIC_MOVER.get_rook(pos, all).bitboard,
+                Knight => KNIGHT_MASKS[*pos as usize].sum,
+                Bishop => MAGIC_MOVER.get_bishop(pos, all).bitboard,
+                Queen => {
+                    MAGIC_MOVER.get_rook(pos, all).bitboard
+                        | MAGIC_MOVER.get_bishop(pos, all).bitboard
+                }
+                King => KING_MASKS[*pos as usize].sum,
+            };
         }
 
         attacked_squares
@@ -658,10 +651,11 @@ impl BoardState {
 
         for i in rights.chars() {
             match i {
-                'K' => white_rights.1 = true,
-                'Q' => white_rights.0 = true,
-                'k' => black_rights.1 = true,
-                'q' => black_rights.0 = true,
+                'K' | 'H' => white_rights.1 = true,
+                'Q' | 'A' => white_rights.0 = true,
+                'k' | 'h' => black_rights.1 = true,
+                'q' | 'a' => black_rights.0 = true,
+                '-' => break,
                 _ => panic!("Invalid FEN"),
             }
         }

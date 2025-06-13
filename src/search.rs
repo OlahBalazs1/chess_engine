@@ -19,7 +19,7 @@ use PieceType::*;
 
 pub fn find_pawn(
     moves: &mut Vec<Move>,
-    attack_bits: &mut u64,
+
     pos: Position,
     state: &SearchBoard,
     pin_state: &PinState,
@@ -45,7 +45,6 @@ pub fn find_pawn(
     if must_block == 0 {
         find_pawn_unrestricted(
             moves,
-            attack_bits,
             pos,
             side,
             allies,
@@ -56,7 +55,6 @@ pub fn find_pawn(
     } else {
         find_pawn_restricted(
             moves,
-            attack_bits,
             pos,
             side,
             allies,
@@ -69,7 +67,7 @@ pub fn find_pawn(
 }
 fn find_pawn_unrestricted(
     moves: &mut Vec<Move>,
-    attack_bits: &mut u64,
+
     pos: Position,
     side: Side,
     allies: u64,
@@ -84,7 +82,7 @@ fn find_pawn_unrestricted(
     };
     if let Some(can_take) = pos.with_offset(Offset::new(0, yo)) {
         let data = &PAWN_TAKE_MASKS[*can_take as usize];
-        *attack_bits |= data.sum;
+
         for i in data.positions.iter() {
             if enemies & i.as_mask() != 0 {
                 gen_pawn_moves(moves, pos, *i, all_square_data.get(*i));
@@ -119,7 +117,7 @@ fn find_pawn_unrestricted(
 
 fn find_pawn_restricted(
     moves: &mut Vec<Move>,
-    attack_bits: &mut u64,
+
     pos: Position,
     side: Side,
     allies: u64,
@@ -136,7 +134,7 @@ fn find_pawn_restricted(
 
     if let Some(can_take) = pos.with_offset(Offset::new(0, yo)) {
         let data = &PAWN_TAKE_MASKS[*can_take as usize];
-        *attack_bits |= data.sum;
+
         for i in data.positions.iter() {
             if must_block & i.as_mask() != 0 && enemies & i.as_mask() != 0 {
                 gen_pawn_moves(moves, pos, *i, all_square_data.get(*i));
@@ -187,7 +185,7 @@ fn gen_pawn_moves(moves: &mut Vec<Move>, from: Position, to: Position, take: Opt
 
 pub fn find_knight(
     moves: &mut Vec<Move>,
-    attack_bits: &mut u64,
+
     pos: Position,
     state: &SearchBoard,
     pin_state: &PinState,
@@ -202,43 +200,37 @@ pub fn find_knight(
     }
 
     match check_paths {
-        CheckPath::None => {
-            *attack_bits |= KNIGHT_MASKS[*pos as usize].sum;
-            moves.extend({
-                KNIGHT_MASKS[*pos as usize]
-                    .positions
-                    .iter()
-                    .copied()
-                    .filter(|p| allies & p.as_mask() == 0)
-                    .map(|i| {
-                        Move::new(
-                            pos,
-                            i,
-                            MoveType::Normal(PieceType::Knight),
-                            all_square_data.get(i),
-                        )
-                    })
-            })
-        }
+        CheckPath::None => moves.extend({
+            KNIGHT_MASKS[*pos as usize]
+                .positions
+                .iter()
+                .copied()
+                .filter(|p| allies & p.as_mask() == 0)
+                .map(|i| {
+                    Move::new(
+                        pos,
+                        i,
+                        MoveType::Normal(PieceType::Knight),
+                        all_square_data.get(i),
+                    )
+                })
+        }),
 
-        CheckPath::Blockable(must_block) => {
-            *attack_bits |= KNIGHT_MASKS[*pos as usize].sum;
-            moves.extend({
-                KNIGHT_MASKS[*pos as usize]
-                    .positions
-                    .iter()
-                    .copied()
-                    .filter(|p| allies & p.as_mask() == 0 && must_block & p.as_mask() != 0)
-                    .map(|i| {
-                        Move::new(
-                            pos,
-                            i,
-                            MoveType::Normal(PieceType::Knight),
-                            all_square_data.get(i),
-                        )
-                    })
-            })
-        }
+        CheckPath::Blockable(must_block) => moves.extend({
+            KNIGHT_MASKS[*pos as usize]
+                .positions
+                .iter()
+                .copied()
+                .filter(|p| allies & p.as_mask() == 0 && must_block & p.as_mask() != 0)
+                .map(|i| {
+                    Move::new(
+                        pos,
+                        i,
+                        MoveType::Normal(PieceType::Knight),
+                        all_square_data.get(i),
+                    )
+                })
+        }),
 
         CheckPath::Multiple => return,
     }
@@ -246,7 +238,6 @@ pub fn find_knight(
 
 pub fn find_king(
     moves: &mut Vec<Move>,
-    attack_bits: &mut u64,
     pos: Position,
     state: &SearchBoard,
     check_paths: &CheckPath,
@@ -259,8 +250,6 @@ pub fn find_king(
     let all_square_data = &state.state.board;
     let must_avoid = allies | attacked_squares;
 
-    // normal moving
-    *attack_bits |= KING_MASKS[*pos as usize].sum;
     moves.extend(
         KING_MASKS[*pos as usize]
             .positions
@@ -306,26 +295,16 @@ pub fn find_king(
 
 pub fn find_rook(
     moves: &mut Vec<Move>,
-    attack_bits: &mut u64,
     pos: Position,
     state: &SearchBoard,
     pin_state: &PinState,
     check_paths: &CheckPath,
 ) {
-    find_rook_with_magic(
-        moves,
-        attack_bits,
-        pos,
-        state,
-        pin_state,
-        check_paths,
-        &*MAGIC_MOVER,
-    )
+    find_rook_with_magic(moves, pos, state, pin_state, check_paths, &*MAGIC_MOVER)
 }
 
 pub fn find_rook_with_magic(
     moves: &mut Vec<Move>,
-    attack_bits: &mut u64,
     pos: Position,
     state: &SearchBoard,
     pin_state: &PinState,
@@ -349,73 +328,64 @@ pub fn find_rook_with_magic(
         _ => return,
     };
     let data = magic_mover.get_rook(pos, all_pieces);
-    *attack_bits |= data.bitboard;
 
     if must_block == 0 {
-        let normals = data
-            .normal
-            .iter()
-            .copied()
-            .map(|i| Move::new(pos, i, MoveType::Normal(Rook), None));
+        moves.extend(
+            data.normal
+                .iter()
+                .copied()
+                .map(|i| Move::new(pos, i, MoveType::Normal(Rook), None)),
+        );
 
-        let takes = data
-            .possible_takes()
-            .filter(|i| allies & i.as_mask() == 0)
-            .map(|i| {
-                Move::new(
-                    pos,
-                    i,
-                    MoveType::Normal(PieceType::Rook),
-                    all_square_data.get(i),
-                )
-            });
-
-        moves.extend(normals.chain(takes));
+        moves.extend(
+            data.possible_takes()
+                .filter(|i| allies & i.as_mask() == 0)
+                .map(|i| {
+                    Move::new(
+                        pos,
+                        i,
+                        MoveType::Normal(PieceType::Rook),
+                        all_square_data.get(i),
+                    )
+                }),
+        );
     } else {
-        let normals = data
-            .normal
-            .iter()
-            .copied()
-            .filter(|i| must_block & i.as_mask() != 0)
-            .map(|i| Move::new(pos, i, MoveType::Normal(Rook), None));
+        moves.extend(
+            data.normal
+                .iter()
+                .copied()
+                .filter(|i| must_block & i.as_mask() != 0)
+                .map(|i| Move::new(pos, i, MoveType::Normal(Rook), None)),
+        );
 
-        let takes = data
-            .possible_takes()
-            .filter(|i| allies & i.as_mask() == 0 && must_block & i.as_mask() != 0)
-            .map(|i| {
-                Move::new(
-                    pos,
-                    i,
-                    MoveType::Normal(PieceType::Rook),
-                    all_square_data.get(i),
-                )
-            });
-        moves.extend(normals.chain(takes));
+        moves.extend(
+            data.possible_takes()
+                .filter(|i| allies & i.as_mask() == 0 && must_block & i.as_mask() != 0)
+                .map(|i| {
+                    Move::new(
+                        pos,
+                        i,
+                        MoveType::Normal(PieceType::Rook),
+                        all_square_data.get(i),
+                    )
+                }),
+        );
     }
 }
 
 pub fn find_bishop(
     moves: &mut Vec<Move>,
-    attack_bits: &mut u64,
+
     pos: Position,
     state: &SearchBoard,
     pin_state: &PinState,
     check_paths: &CheckPath,
 ) {
-    find_bishop_with_magic(
-        moves,
-        attack_bits,
-        pos,
-        state,
-        pin_state,
-        check_paths,
-        &*MAGIC_MOVER,
-    )
+    find_bishop_with_magic(moves, pos, state, pin_state, check_paths, &*MAGIC_MOVER)
 }
 
 pub fn find_bishop_with_magic(
     moves: &mut Vec<Move>,
-    attack_bits: &mut u64,
     pos: Position,
     state: &SearchBoard,
     pin_state: &PinState,
@@ -440,74 +410,65 @@ pub fn find_bishop_with_magic(
         _ => return,
     };
     let data = magic_mover.get_bishop(pos, all_pieces);
-    *attack_bits |= data.bitboard;
 
     if must_block == 0 {
-        let normals = data
-            .normal
-            .iter()
-            .copied()
-            .map(|i| Move::new(pos, i, MoveType::Normal(Bishop), None));
+        moves.extend(
+            data.normal
+                .iter()
+                .copied()
+                .map(|i| Move::new(pos, i, MoveType::Normal(Bishop), None)),
+        );
 
-        let takes = data
-            .possible_takes()
-            .filter(|i| allies & i.as_mask() == 0)
-            .map(|i| {
-                Move::new(
-                    pos,
-                    i,
-                    MoveType::Normal(PieceType::Bishop),
-                    all_square_data.get(i),
-                )
-            });
+        moves.extend(
+            data.possible_takes()
+                .filter(|i| allies & i.as_mask() == 0)
+                .map(|i| {
+                    Move::new(
+                        pos,
+                        i,
+                        MoveType::Normal(PieceType::Bishop),
+                        all_square_data.get(i),
+                    )
+                }),
+        );
 
-        moves.extend(normals.chain(takes));
         // moves.extend(normals);
     } else {
-        let normals = data
-            .normal
-            .iter()
-            .copied()
-            .filter(|i| must_block & i.as_mask() != 0)
-            .map(|i| Move::new(pos, i, MoveType::Normal(Bishop), None));
+        moves.extend(
+            data.normal
+                .iter()
+                .copied()
+                .filter(|i| must_block & i.as_mask() != 0)
+                .map(|i| Move::new(pos, i, MoveType::Normal(Bishop), None)),
+        );
 
-        let takes = data
-            .possible_takes()
-            .filter(|i| allies & i.as_mask() == 0 && must_block & i.as_mask() != 0)
-            .map(|i| {
-                Move::new(
-                    pos,
-                    i,
-                    MoveType::Normal(PieceType::Bishop),
-                    all_square_data.get(i),
-                )
-            });
-        moves.extend(normals.chain(takes));
+        moves.extend(
+            data.possible_takes()
+                .filter(|i| allies & i.as_mask() == 0 && must_block & i.as_mask() != 0)
+                .map(|i| {
+                    Move::new(
+                        pos,
+                        i,
+                        MoveType::Normal(PieceType::Bishop),
+                        all_square_data.get(i),
+                    )
+                }),
+        );
     }
 }
 
 pub fn find_queen(
     moves: &mut Vec<Move>,
-    attack_bits: &mut u64,
     pos: Position,
     state: &SearchBoard,
     pin_state: &PinState,
     check_paths: &CheckPath,
 ) {
-    find_queen_with_magic(
-        moves,
-        attack_bits,
-        pos,
-        state,
-        pin_state,
-        check_paths,
-        &*MAGIC_MOVER,
-    )
+    find_queen_with_magic(moves, pos, state, pin_state, check_paths, &*MAGIC_MOVER)
 }
 
 pub fn find_queen_with_magic(
     moves: &mut Vec<Move>,
-    attack_bits: &mut u64,
     pos: Position,
     state: &SearchBoard,
     pin_state: &PinState,
@@ -531,19 +492,10 @@ pub fn find_queen_with_magic(
         _ => return,
     };
     if must_block == 0 {
-        queen_unrestricted(
-            moves,
-            attack_bits,
-            pos,
-            allies,
-            all_pieces,
-            magic_mover,
-            all_square_data,
-        );
+        queen_unrestricted(moves, pos, allies, all_pieces, magic_mover, all_square_data);
     } else {
         queen_restricted(
             moves,
-            attack_bits,
             pos,
             allies,
             all_pieces,
@@ -556,7 +508,6 @@ pub fn find_queen_with_magic(
 
 fn queen_unrestricted(
     moves: &mut Vec<Move>,
-    attack_bits: &mut u64,
     pos: Position,
     allies: u64,
     all_pieces: u64,
@@ -564,50 +515,53 @@ fn queen_unrestricted(
     all_square_data: &BoardRepr,
 ) {
     let rook_data = magic_mover.get_rook(pos, all_pieces);
-    *attack_bits |= rook_data.bitboard;
-    let normals = rook_data
-        .normal
-        .iter()
-        .copied()
-        .map(|i| Move::new(pos, i, MoveType::Normal(PieceType::Queen), None));
-    let takes = rook_data
-        .possible_takes()
-        .filter(|i| allies & i.as_mask() == 0)
-        .map(|i| {
-            Move::new(
-                pos,
-                i,
-                MoveType::Normal(PieceType::Queen),
-                all_square_data.get(i),
-            )
-        });
-    moves.extend(normals.chain(takes));
+    moves.extend(
+        rook_data
+            .normal
+            .iter()
+            .copied()
+            .map(|i| Move::new(pos, i, MoveType::Normal(PieceType::Queen), None)),
+    );
+    moves.extend(
+        rook_data
+            .possible_takes()
+            .filter(|i| allies & i.as_mask() == 0)
+            .map(|i| {
+                Move::new(
+                    pos,
+                    i,
+                    MoveType::Normal(PieceType::Queen),
+                    all_square_data.get(i),
+                )
+            }),
+    );
 
     let bishop_data = magic_mover.get_bishop(pos, all_pieces);
-    *attack_bits |= bishop_data.bitboard;
-    let normals = bishop_data
-        .normal
-        .iter()
-        .copied()
-        .map(|i| Move::new(pos, i, MoveType::Normal(PieceType::Queen), None));
+    moves.extend(
+        bishop_data
+            .normal
+            .iter()
+            .copied()
+            .map(|i| Move::new(pos, i, MoveType::Normal(PieceType::Queen), None)),
+    );
 
-    let takes = bishop_data
-        .possible_takes()
-        .filter(|i| allies & i.as_mask() == 0)
-        .map(|i| {
-            Move::new(
-                pos,
-                i,
-                MoveType::Normal(PieceType::Queen),
-                all_square_data.get(i),
-            )
-        });
-    moves.extend(normals.chain(takes));
+    moves.extend(
+        bishop_data
+            .possible_takes()
+            .filter(|i| allies & i.as_mask() == 0)
+            .map(|i| {
+                Move::new(
+                    pos,
+                    i,
+                    MoveType::Normal(PieceType::Queen),
+                    all_square_data.get(i),
+                )
+            }),
+    );
 }
 
 fn queen_restricted(
     moves: &mut Vec<Move>,
-    attack_bits: &mut u64,
     pos: Position,
     allies: u64,
     all_pieces: u64,
@@ -616,29 +570,31 @@ fn queen_restricted(
     must_block: u64,
 ) {
     let rook_data = magic_mover.get_rook(pos, all_pieces);
-    *attack_bits |= rook_data.bitboard;
-    let normals = rook_data
-        .normal
-        .iter()
-        .copied()
-        .filter(|i| must_block & i.as_mask() != 0)
-        .map(|i| Move::new(pos, i, MoveType::Normal(PieceType::Queen), None));
-    let takes = rook_data
-        .possible_takes()
-        .filter(|i| allies & i.as_mask() == 0 && must_block & i.as_mask() != 0)
-        .map(|i| {
-            Move::new(
-                pos,
-                i,
-                MoveType::Normal(PieceType::Queen),
-                all_square_data.get(i),
-            )
-        });
+    moves.extend(
+        rook_data
+            .normal
+            .iter()
+            .copied()
+            .filter(|i| must_block & i.as_mask() != 0)
+            .map(|i| Move::new(pos, i, MoveType::Normal(PieceType::Queen), None)),
+    );
+    moves.extend(
+        rook_data
+            .possible_takes()
+            .filter(|i| allies & i.as_mask() == 0 && must_block & i.as_mask() != 0)
+            .map(|i| {
+                Move::new(
+                    pos,
+                    i,
+                    MoveType::Normal(PieceType::Queen),
+                    all_square_data.get(i),
+                )
+            }),
+    );
 
     let bishop_data = magic_mover.get_bishop(pos, all_pieces);
-    *attack_bits |= bishop_data.bitboard;
 
-    let normals = normals.chain(
+    moves.extend(
         bishop_data
             .normal
             .iter()
@@ -647,7 +603,7 @@ fn queen_restricted(
             .map(|i| Move::new(pos, i, MoveType::Normal(PieceType::Queen), None)),
     );
 
-    let takes = takes.chain(
+    moves.extend(
         bishop_data
             .possible_takes()
             .filter(|i| allies & i.as_mask() == 0 && must_block & i.as_mask() != 0)
@@ -660,5 +616,4 @@ fn queen_restricted(
                 )
             }),
     );
-    moves.extend(normals.chain(takes));
 }
