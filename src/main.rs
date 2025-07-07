@@ -11,6 +11,7 @@ use position::Position;
 use search_data::{CheckPath, PinState};
 
 mod board;
+mod board_repr;
 mod engine;
 mod hashers;
 mod magic_bitboards;
@@ -20,7 +21,6 @@ mod position;
 mod search;
 mod search_data;
 mod search_masks;
-mod utils;
 mod zobrist;
 
 use engine::perft::*;

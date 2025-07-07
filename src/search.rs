@@ -19,7 +19,6 @@ use PieceType::*;
 
 pub fn find_pawn(
     moves: &mut Vec<Move>,
-
     pos: Position,
     state: &SearchBoard,
     pin_state: &PinState,
