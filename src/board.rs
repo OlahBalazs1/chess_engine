@@ -513,7 +513,8 @@ impl BoardState {
     pub fn get_attacked(&self, enemy: Side) -> u64 {
         let mut attacked_squares = 0;
 
-        let all = self.white.combined() | self.black.combined();
+        let all = (self.white.combined() | self.black.combined())
+            & !(self.side_bitboard(enemy.opposite())[KING]);
 
         let pieces = self
             .board

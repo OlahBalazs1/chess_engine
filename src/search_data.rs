@@ -8,7 +8,7 @@ use crate::{
     search_masks::{KNIGHT_MASKS, PAWN_TAKE_MASKS},
 };
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct PinState {
     pub diagonal_1: u64,
     pub diagonal_2: u64,
@@ -163,15 +163,12 @@ impl PinState {
     fn find_with(state: &BoardState, king_pos: Position, magic_mover: &MagicMover) -> Self {
         let ally_bitboards = state.side_bitboard(state.side);
         let enemy_bitboards = state.side_bitboard(state.side.opposite());
-        let king_pos: Position = king_pos;
         let king_mask = king_pos.as_mask();
 
         let friendlies = ally_bitboards.combined();
-        let enemies = ally_bitboards.combined();
-        let diagonal_attackers = enemy_bitboards.state[BISHOP] | enemy_bitboards.state[QUEEN];
-        let parallel_attackers = enemy_bitboards.state[ROOK] | enemy_bitboards.state[QUEEN];
+        let enemies = enemy_bitboards.combined();
 
-        let surrounding_friendlies = magic_mover
+        let first_pass = magic_mover
             .get_rook(king_pos, friendlies | enemies)
             .bitboard
             | magic_mover
@@ -179,7 +176,8 @@ impl PinState {
                 .bitboard;
 
         let (diagonal_1, diagonal_2) = {
-            let targets = friendlies & !(surrounding_friendlies) | enemy_bitboards.combined();
+            let diagonal_attackers = enemy_bitboards.state[BISHOP] | enemy_bitboards.state[QUEEN];
+            let targets = (friendlies & !(first_pass)) | enemy_bitboards.combined();
             let cast = magic_mover.get_bishop(king_pos, targets);
             let mut casts_1: u64 = 0;
             let mut casts_2: u64 = 0;
@@ -213,10 +211,12 @@ impl PinState {
                     }
                 }
             }
-            (cast.bitboard & casts_1, cast.bitboard & casts_2)
+            // print_bits(casts_2);
+            (cast.bitboard & casts_1, casts_2)
         };
         let (x_aligned, y_aligned) = {
-            let targets = friendlies & !(surrounding_friendlies) | enemy_bitboards.combined();
+            let parallel_attackers = enemy_bitboards.state[ROOK] | enemy_bitboards.state[QUEEN];
+            let targets = friendlies & !(first_pass) | enemies;
             let cast = magic_mover.get_rook(king_pos, targets);
             let mut x_casts: u64 = 0;
             let mut y_casts: u64 = 0;
