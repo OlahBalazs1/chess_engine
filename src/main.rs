@@ -18,6 +18,7 @@ mod magic_bitboards;
 mod moving;
 mod piece;
 mod position;
+mod pseudo_moving;
 mod search;
 mod search_data;
 mod search_masks;
