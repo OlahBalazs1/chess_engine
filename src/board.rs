@@ -431,9 +431,7 @@ impl BoardState {
         }
     }
     pub fn piece_at_position(&self, pos: Position) -> Option<Piece> {
-        self.board.get(pos);
-
-        None
+        self.board.get(pos)
     }
 
     pub fn from_fen(fen: &str) -> Self {

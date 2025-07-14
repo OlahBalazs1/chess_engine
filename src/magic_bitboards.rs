@@ -3,7 +3,6 @@ use crate::{
     moving::{Move, MoveType},
     piece::PieceType,
     position::{Offset, Position},
-    utils::StaticData,
 };
 use std::cell::{LazyCell, OnceCell, UnsafeCell};
 use std::fmt::Debug;

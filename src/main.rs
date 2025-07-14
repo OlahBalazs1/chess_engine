@@ -1,6 +1,7 @@
 use std::{
     alloc::System,
     hint::{black_box, unreachable_unchecked},
+    ops::Index,
     sync::LazyLock,
     time::SystemTime,
 };
@@ -37,9 +38,9 @@ fn main() {
     // let _ = LazyLock::force(&MAGIC_MOVER);
     //
     //
-    const DEPTH: usize = 5;
+    const DEPTH: usize = 4;
 
-    test::<DEPTH>();
+    pseudo_test::<DEPTH>();
 
     // for _ in 0..1 {
     //     let start = SystemTime::now();

@@ -1,7 +1,8 @@
 use std::pin::Pin;
 
 use crate::{
-    board::{BoardState, SearchBoard, BISHOP, KNIGHT, PAWN, QUEEN, ROOK},
+    board::{BoardState, SearchBoard},
+    board_repr::{BISHOP, KNIGHT, PAWN, QUEEN, ROOK},
     magic_bitboards::{print_bits, MagicData, MagicMover, MAGIC_MOVER},
     piece::Side,
     position::Position,

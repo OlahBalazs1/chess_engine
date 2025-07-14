@@ -158,6 +158,11 @@ impl TryFrom<(u8, u8)> for Position {
         Ok(Self::new(value.0, value.1))
     }
 }
+impl Into<usize> for Position {
+    fn into(self) -> usize {
+        *self as usize
+    }
+}
 
 impl Display for Position {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

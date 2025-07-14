@@ -1,6 +1,7 @@
 use rand::seq::IndexedRandom;
 
-use crate::board::{Bitboards, BoardRepr, BoardState};
+use crate::board::BoardState;
+use crate::board_repr::{Bitboards, BoardRepr};
 use crate::piece::Piece;
 use crate::search_data::{CheckPath, PinState};
 use crate::search_masks::{SingularData, KING_MASKS, KNIGHT_MASKS, PAWN_TAKE_MASKS};
@@ -90,33 +91,28 @@ fn find_pawn_unrestricted(
             }
         }
     }
+    let all_pieces = allies | enemies;
 
-    let mut moves_iter = [Offset::new(0, yo), Offset::new(0, yo * 2)]
-        .into_iter()
-        .filter_map(|i| pos.with_offset(i));
-
-    let Some(next) = moves_iter.next() else {
-        return;
-    };
-    if (allies | enemies) & next.as_mask() == 0 {
-        gen_pawn_moves(moves, pos, next, None);
+    if let Some(to) = pos.with_offset(Offset::new(0, yo))
+        && all_pieces & to.as_mask() == 0
+    {
+        gen_pawn_moves(moves, pos, to, None);
     } else {
         return;
-    }
+    };
 
-    if matches!(pos.y(), 1 | 6) {
-        let Some(next) = moves_iter.next() else {
-            return;
-        };
-        if (allies | enemies) & next.as_mask() == 0 {
-            gen_pawn_moves(moves, pos, next, None);
-        }
-    }
+    if matches!(pos.y(), 1 | 6)
+        && let Some(to) = pos.with_offset(Offset::new(0, yo * 2))
+        && all_pieces & to.as_mask() == 0
+    {
+        gen_pawn_moves(moves, pos, to, None);
+    } else {
+        return;
+    };
 }
 
 fn find_pawn_restricted(
     moves: &mut Vec<Move>,
-
     pos: Position,
     side: Side,
     allies: u64,
@@ -143,30 +139,25 @@ fn find_pawn_restricted(
         }
     }
 
-    let mut moves_iter = [Offset::new(0, yo), Offset::new(0, yo * 2)]
-        .into_iter()
-        .filter_map(|i| pos.with_offset(i));
+    let all_pieces = allies | enemies;
 
-    let Some(next) = moves_iter.next() else {
-        return;
-    };
-    if (allies | enemies) & next.as_mask() == 0 {
-        if must_block & next.as_mask() != 0 {
-            gen_pawn_moves(moves, pos, next, None);
-        }
+    if let Some(to) = pos.with_offset(Offset::new(0, yo))
+        && all_pieces & to.as_mask() == 0
+        && must_block & to.as_mask() != 0
+    {
+        gen_pawn_moves(moves, pos, to, None);
     } else {
         return;
     }
 
-    if matches!(pos.y(), 1 | 6) {
-        let Some(next) = moves_iter.next() else {
-            return;
-        };
-        if (allies | enemies) & next.as_mask() == 0 {
-            if must_block & next.as_mask() != 0 {
-                gen_pawn_moves(moves, pos, next, None);
-            }
-        }
+    if matches!(pos.y(), 1 | 6)
+        && let Some(to) = pos.with_offset(Offset::new(0, yo * 2))
+        && all_pieces & to.as_mask() == 0
+        && must_block & to.as_mask() != 0
+    {
+        gen_pawn_moves(moves, pos, to, None);
+    } else {
+        return;
     }
 }
 
@@ -184,7 +175,6 @@ fn gen_pawn_moves(moves: &mut Vec<Move>, from: Position, to: Position, take: Opt
 
 pub fn find_knight(
     moves: &mut Vec<Move>,
-
     pos: Position,
     state: &SearchBoard,
     pin_state: &PinState,

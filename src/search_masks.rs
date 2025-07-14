@@ -1,4 +1,4 @@
-use crate::{position::Offset, utils::StaticData};
+use crate::position::Offset;
 use array_init::array_init;
 use std::{cell::LazyCell, sync::LazyLock};
 
