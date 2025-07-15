@@ -17,6 +17,7 @@ mod engine;
 mod hashers;
 mod magic_bitboards;
 mod moving;
+mod perft_data;
 mod piece;
 mod position;
 mod pseudo_moving;
