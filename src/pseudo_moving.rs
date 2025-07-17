@@ -26,19 +26,24 @@ pub fn find_pawn(
     let Some(offset_for_take) = pos.with_offset(Offset::new(0, yo)) else {
         return;
     };
-    let take_positions = &PAWN_TAKE_MASKS[*offset_for_take as usize].positions;
+    let take_positions = [Offset::new(-1, yo), Offset::new(1, yo)]
+        .into_iter()
+        .filter_map(|i| pos.with_offset(i));
+    // let take_positions = &PAWN_TAKE_MASKS[*offset_for_take as usize].positions;
 
-    for take_pos in take_positions.iter().copied() {
-        if enemies & take_pos.as_mask() != 0 {
+    for take_pos in take_positions {
+        if all_square_data
+            .get(take_pos)
+            .is_some_and(|target| target.side() != side)
+        {
             gen_pawn_moves(moves, pos, take_pos, all_square_data.get(take_pos));
         } else if ep_square.is_some_and(|ep| ep == take_pos) {
             moves.push(Move::new(pos, take_pos, MoveType::EnPassant, None));
         }
     }
-    let all_pieces = allies | enemies;
 
     if let Some(to) = pos.with_offset(Offset::new(0, yo))
-        && all_pieces & to.as_mask() == 0
+        && all_square_data.get(to).is_none()
     {
         gen_pawn_moves(moves, pos, to, None);
     } else {
@@ -47,7 +52,7 @@ pub fn find_pawn(
 
     if matches!(pos.y(), 1 | 6)
         && let Some(to) = pos.with_offset(Offset::new(0, yo * 2))
-        && all_pieces & to.as_mask() == 0
+        && all_square_data.get(to).is_none()
     {
         gen_pawn_moves(moves, pos, to, None);
     } else {
@@ -76,7 +81,7 @@ pub fn find_knight(moves: &mut Vec<Move>, pos: Position, state: &SearchBoard) {
             .positions
             .iter()
             .copied()
-            .filter(|p| allies & p.as_mask() == 0)
+            .filter(|p| all_square_data.get(*p).is_none_or(|i| i.side() != side))
             .map(|i| {
                 Move::new(
                     pos,
@@ -88,19 +93,18 @@ pub fn find_knight(moves: &mut Vec<Move>, pos: Position, state: &SearchBoard) {
     );
 }
 
-pub fn find_king(moves: &mut Vec<Move>, attacked: u64, pos: Position, state: &SearchBoard) {
+pub fn find_king(moves: &mut Vec<Move>, pos: Position, state: &SearchBoard) {
     let side = state.side();
     let allies = state.side_bitboards(side).combined();
     let enemies = state.side_bitboards(side.opposite()).combined();
     let castle_rights = state.state.side_castle_rights(side);
     let all_square_data = &state.state.board;
-    let must_avoid = allies | attacked;
 
     moves.extend(
         KING_MASKS[*pos as usize]
             .positions
             .iter()
-            .filter(|i| must_avoid & i.as_mask() == 0 && !state.is_attacked(**i, side.opposite()))
+            .filter(|i| all_square_data.get(**i).is_none_or(|i| i.side() != side))
             .map(|i| {
                 Move::new(
                     pos,
@@ -111,28 +115,42 @@ pub fn find_king(moves: &mut Vec<Move>, attacked: u64, pos: Position, state: &Se
             }),
     );
 
-    if !state.is_attacked(pos, side.opposite()) {
-        let short = 0b110 << side.home_y();
-        let long = 0x60 << side.home_y();
+    // let is_attacked = |pos| state.is_attacked(pos, side.opposite());
 
-        if castle_rights.0 && long & must_avoid == 0 {
-            moves.push(Move::new(
-                pos,
-                pos.with_x(2).unwrap(),
-                MoveType::LongCastle,
-                None,
-            ));
-        }
-
-        if castle_rights.1 && short & must_avoid == 0 {
-            moves.push(Move::new(
-                pos,
-                pos.with_x(6).unwrap(),
-                MoveType::ShortCastle,
-                None,
-            ));
-        }
-    }
+    // if !state.is_attacked(pos, side.opposite()) {
+    //     let short = 0b110 << side.home_y();
+    //     let long = 0x60 << side.home_y();
+    //
+    //     if castle_rights.0
+    //         && is_attacked(pos.with_x(3).unwrap())
+    //         && is_attacked(pos.with_x(2).unwrap())
+    //         && (allies | enemies)
+    //             & (pos.with_x(3).unwrap().as_mask() | pos.with_x(2).unwrap().as_mask())
+    //             == 0
+    //     {
+    //         moves.push(Move::new(
+    //             pos,
+    //             pos.with_x(2).unwrap(),
+    //             MoveType::LongCastle,
+    //             None,
+    //         ));
+    //     }
+    //
+    //     if castle_rights.1
+    //         && is_attacked(pos.with_x(5).unwrap())
+    //         && is_attacked(pos.with_x(6).unwrap())
+    //         && (allies | enemies)
+    //             & (pos.with_x(5).unwrap().as_mask() | pos.with_x(6).unwrap().as_mask())
+    //             == 0
+    //     {
+    //         moves.push(Move::new(
+    //             pos,
+    //             pos.with_x(6).unwrap(),
+    //             MoveType::ShortCastle,
+    //             None,
+    //         ));
+    //     }
+    // }
 }
 
 fn find_rook(moves: &mut Vec<Move>, pos: Position, allies: u64, enemies: u64, state: &SearchBoard) {
@@ -175,6 +193,7 @@ fn traverse_direction(
     state: &SearchBoard,
     piece_type: PieceType,
 ) {
+    let side = state.get_piece_at(pos).unwrap().side();
     for mul in 1..7 {
         let Some(multiplied_dir) = dir.mul(mul) else {
             return;
@@ -183,17 +202,23 @@ fn traverse_direction(
             return;
         };
 
-        if allies & offset_pos.as_mask() != 0 {
-            return;
-        }
-        moves.push(Move::new(
-            pos,
-            offset_pos,
-            MoveType::Normal(piece_type),
-            state.get_piece_at(offset_pos),
-        ));
-        if enemies & offset_pos.as_mask() != 0 {
-            return;
+        match state.get_piece_at(offset_pos) {
+            Some(i) if i.side() != side => {
+                moves.push(Move::new(
+                    pos,
+                    offset_pos,
+                    MoveType::Normal(piece_type),
+                    state.get_piece_at(offset_pos),
+                ));
+                return;
+            }
+            None => moves.push(Move::new(
+                pos,
+                offset_pos,
+                MoveType::Normal(piece_type),
+                state.get_piece_at(offset_pos),
+            )),
+            _ => return,
         }
     }
 }
@@ -221,7 +246,7 @@ fn find_queen(
 }
 
 impl SearchBoard {
-    pub fn find_all_pseudo(&self, attacked_squares: u64, side: Side) -> Vec<Move> {
+    pub fn find_all_pseudo(&self, side: Side) -> Vec<Move> {
         use PieceType::*;
         let mut moves = Vec::new();
         let allies = self.side_bitboards(side).combined();
@@ -245,7 +270,7 @@ impl SearchBoard {
                 Some(Knight) => find_knight(&mut moves, i, self),
                 Some(Bishop) => find_bishop(&mut moves, i, allies, enemies, self),
                 Some(Queen) => find_queen(&mut moves, i, allies, enemies, self),
-                Some(King) => find_king(&mut moves, attacked_squares, i, self),
+                Some(King) => find_king(&mut moves, i, self),
                 None => continue,
             }
         }
@@ -263,6 +288,8 @@ impl SearchBoard {
         attacked
     }
     pub fn is_attacked(&self, pos: Position, enemy: Side) -> bool {
+        use PieceType::*;
+        let ally_data = self.side_bitboards(enemy.opposite());
         let enemy_data = self.side_bitboards(enemy);
         let can_king = KING_MASKS[*pos as usize].sum & enemy_data[KING] != 0;
         if can_king {
@@ -279,49 +306,43 @@ impl SearchBoard {
             return true;
         }
 
-        let moves =
-            self.find_all_moves_except_king_and_pawn_also_enemy_and_allies_are_switched_because_i_only_want_this_for_the_is_attacked_function_and_this_is_cleaner_than_inlining_it_probably(enemy);
-        for i in moves {
-            if let Some(taken) = i.take {
-                if i.to == pos {
-                    return true;
-                }
-            }
+        if KNIGHT_MASKS[*pos as usize].sum & enemy_data[KNIGHT] != 0 {
+            return true;
         }
-        false
-    }
 
-    fn find_all_moves_except_king_and_pawn_also_enemy_and_allies_are_switched_because_i_only_want_this_for_the_is_attacked_function_and_this_is_cleaner_than_inlining_it_probably(
-        &self,
-        moving: Side,
-    ) -> Vec<Move> {
-        use PieceType::*;
         let mut moves = Vec::new();
-        let allies = self.side_bitboards(moving).combined();
-        let enemies = self.side_bitboards(moving.opposite()).combined();
-        let all_square_data = &self.state.board;
-        for i in (0..64).map(Position::from_index) {
-            let Some(found_piece) = self.get_piece_at(i) else {
-                continue;
-            };
-            match found_piece.filter_side(moving).map(|i| i.piece_type) {
-                Some(Pawn) => find_pawn(
-                    &mut moves,
-                    i,
-                    moving,
-                    allies,
-                    enemies,
-                    all_square_data,
-                    self.state.en_passant_square,
-                ),
-                Some(Rook) => find_rook(&mut moves, i, enemies, allies, self),
-                Some(Knight) => find_knight(&mut moves, i, self),
-                Some(Bishop) => find_bishop(&mut moves, i, enemies, allies, self),
-                Some(Queen) => find_queen(&mut moves, i, enemies, allies, self),
-                _ => continue,
+        find_rook(
+            &mut moves,
+            pos,
+            ally_data.combined(),
+            enemy_data.combined(),
+            self,
+        );
+        for i in moves.drain(..) {
+            if let Some(taken) = i.take
+                && let Some(filtered) = taken.filter_side(enemy)
+                && matches!(filtered.piece_type, Rook | Queen)
+            {
+                return true;
+            }
+        }
+        let mut moves = Vec::new();
+        find_bishop(
+            &mut moves,
+            pos,
+            ally_data.combined(),
+            enemy_data.combined(),
+            self,
+        );
+        for i in moves.drain(..) {
+            if let Some(taken) = i.take
+                && let Some(filtered) = taken.filter_side(enemy)
+                && matches!(filtered.piece_type, Bishop | Queen)
+            {
+                return true;
             }
         }
 
-        moves
+        false
     }
 }

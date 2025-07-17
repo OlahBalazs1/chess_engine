@@ -190,6 +190,7 @@ impl SearchBoard {
         self.state
             .zobrist
             .update_ep_square(side, self.state.en_passant_square, updated_ep);
+        self.state.en_passant_square = updated_ep;
 
         self.state.zobrist.switch_side();
 

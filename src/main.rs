@@ -1,5 +1,6 @@
 use std::{
     alloc::System,
+    collections::HashSet,
     hint::{black_box, unreachable_unchecked},
     ops::Index,
     sync::LazyLock,
@@ -39,7 +40,7 @@ fn main() {
     // let _ = LazyLock::force(&MAGIC_MOVER);
     //
     //
-    const DEPTH: usize = 4;
+    const DEPTH: usize = 5;
 
     pseudo_test::<DEPTH>();
 
