@@ -1,4 +1,48 @@
-use owo_colors::colors::White;
+use owo_colors::{OwoColorize, colors::White};
+const ROOK_DIRECTIONS: [Offset; 4] = [
+    Offset::new(1, 0),
+    Offset::new(0, 1),
+    Offset::new(-1, 0),
+    Offset::new(0, -1),
+];
+const BISHOP_DIRECTIONS: [Offset; 4] = [
+    Offset::new(1, 1),
+    Offset::new(-1, 1),
+    Offset::new(-1, -1),
+    Offset::new(1, -1),
+];
+const QUEEN_DIRECTIONS: [Offset; 8] = [
+    Offset::new(1, 0),
+    Offset::new(0, 1),
+    Offset::new(-1, 0),
+    Offset::new(0, -1),
+    Offset::new(1, 1),
+    Offset::new(-1, 1),
+    Offset::new(-1, -1),
+    Offset::new(1, -1),
+];
+const KING_DIRECTIONS: [Offset; 8] = [
+    Offset::new(1, 0),
+    Offset::new(0, 1),
+    Offset::new(-1, 0),
+    Offset::new(0, -1),
+    Offset::new(1, 1),
+    Offset::new(-1, 1),
+    Offset::new(-1, -1),
+    Offset::new(1, -1),
+];
+const WHITE_PAWN_DIRECTIONS: [Offset; 2] = [Offset::new(-1, 1), Offset::new(1, 1)];
+const BLACK_PAWN_DIRECTIONS: [Offset; 2] = [Offset::new(-1, -1), Offset::new(1, -1)];
+const KNIGHT_DIRECTIONS: [Offset; 8] = [
+    Offset::new(1, -2),
+    Offset::new(1, 2),
+    Offset::new(-1, -2),
+    Offset::new(-1, 2),
+    Offset::new(2, -1),
+    Offset::new(2, 1),
+    Offset::new(-2, -1),
+    Offset::new(-2, 1),
+];
 
 use crate::{
     board::SearchBoard,
@@ -26,16 +70,14 @@ pub fn find_pawn(
     let Some(offset_for_take) = pos.with_offset(Offset::new(0, yo)) else {
         return;
     };
-    let take_positions = [Offset::new(-1, yo), Offset::new(1, yo)]
-        .into_iter()
-        .filter_map(|i| pos.with_offset(i));
     // let take_positions = &PAWN_TAKE_MASKS[*offset_for_take as usize].positions;
 
-    for take_pos in take_positions {
-        if all_square_data
-            .get(take_pos)
-            .is_some_and(|target| target.side() != side)
-        {
+    for take_pos in choose_pawn_direction(side)
+        .iter()
+        .copied()
+        .filter_map(|i| pos.with_offset(i))
+    {
+        if all_square_data.get(take_pos).is_some() {
             gen_pawn_moves(moves, pos, take_pos, all_square_data.get(take_pos));
         } else if ep_square.is_some_and(|ep| ep == take_pos) {
             moves.push(Move::new(pos, take_pos, MoveType::EnPassant, None));
@@ -73,15 +115,13 @@ fn gen_pawn_moves(moves: &mut Vec<Move>, from: Position, to: Position, take: Opt
 
 pub fn find_knight(moves: &mut Vec<Move>, pos: Position, state: &SearchBoard) {
     let side = state.side();
-    let allies = state.side_bitboards(side).combined();
     let all_square_data = &state.state.board;
 
     moves.extend(
-        KNIGHT_MASKS[*pos as usize]
-            .positions
+        KNIGHT_DIRECTIONS
             .iter()
             .copied()
-            .filter(|p| all_square_data.get(*p).is_none_or(|i| i.side() != side))
+            .filter_map(|i| pos.with_offset(i))
             .map(|i| {
                 Move::new(
                     pos,
@@ -94,23 +134,19 @@ pub fn find_knight(moves: &mut Vec<Move>, pos: Position, state: &SearchBoard) {
 }
 
 pub fn find_king(moves: &mut Vec<Move>, pos: Position, state: &SearchBoard) {
-    let side = state.side();
-    let allies = state.side_bitboards(side).combined();
-    let enemies = state.side_bitboards(side.opposite()).combined();
-    let castle_rights = state.state.side_castle_rights(side);
     let all_square_data = &state.state.board;
 
     moves.extend(
-        KING_MASKS[*pos as usize]
-            .positions
+        KING_DIRECTIONS
             .iter()
-            .filter(|i| all_square_data.get(**i).is_none_or(|i| i.side() != side))
+            .copied()
+            .filter_map(|i| pos.with_offset(i))
             .map(|i| {
                 Move::new(
                     pos,
-                    *i,
+                    i,
                     MoveType::Normal(PieceType::King),
-                    all_square_data.get(*i),
+                    all_square_data.get(i),
                 )
             }),
     );
@@ -154,14 +190,7 @@ pub fn find_king(moves: &mut Vec<Move>, pos: Position, state: &SearchBoard) {
 }
 
 fn find_rook(moves: &mut Vec<Move>, pos: Position, allies: u64, enemies: u64, state: &SearchBoard) {
-    const DIRECTIONS: [Offset; 4] = [
-        Offset::new(1, 0),
-        Offset::new(0, 1),
-        Offset::new(-1, 0),
-        Offset::new(0, -1),
-    ];
-
-    for dir in DIRECTIONS {
+    for dir in ROOK_DIRECTIONS {
         traverse_direction(moves, dir, pos, allies, enemies, state, PieceType::Rook);
     }
 }
@@ -172,14 +201,7 @@ fn find_bishop(
     enemies: u64,
     state: &SearchBoard,
 ) {
-    const DIRECTIONS: [Offset; 4] = [
-        Offset::new(1, 1),
-        Offset::new(-1, 1),
-        Offset::new(-1, -1),
-        Offset::new(1, -1),
-    ];
-
-    for dir in DIRECTIONS {
+    for dir in BISHOP_DIRECTIONS {
         traverse_direction(moves, dir, pos, allies, enemies, state, PieceType::Bishop);
     }
 }
@@ -194,7 +216,7 @@ fn traverse_direction(
     piece_type: PieceType,
 ) {
     let side = state.get_piece_at(pos).unwrap().side();
-    for mul in 1..7 {
+    for mul in 1..8 {
         let Some(multiplied_dir) = dir.mul(mul) else {
             return;
         };
@@ -203,7 +225,7 @@ fn traverse_direction(
         };
 
         match state.get_piece_at(offset_pos) {
-            Some(i) if i.side() != side => {
+            Some(i) => {
                 moves.push(Move::new(
                     pos,
                     offset_pos,
@@ -218,7 +240,6 @@ fn traverse_direction(
                 MoveType::Normal(piece_type),
                 state.get_piece_at(offset_pos),
             )),
-            _ => return,
         }
     }
 }
@@ -230,17 +251,7 @@ fn find_queen(
     enemies: u64,
     state: &SearchBoard,
 ) {
-    const DIRECTIONS: [Offset; 8] = [
-        Offset::new(1, 0),
-        Offset::new(0, 1),
-        Offset::new(-1, 0),
-        Offset::new(0, -1),
-        Offset::new(1, 1),
-        Offset::new(-1, 1),
-        Offset::new(-1, -1),
-        Offset::new(1, -1),
-    ];
-    for dir in DIRECTIONS {
+    for dir in QUEEN_DIRECTIONS {
         traverse_direction(moves, dir, pos, allies, enemies, state, PieceType::Queen);
     }
 }
@@ -279,70 +290,75 @@ impl SearchBoard {
     }
 
     pub fn get_attacked_pseudo(&self, attacker: Side) -> u64 {
-        let mut attacked = 0;
-        for i in (0..64).map(Position::from_index) {
-            if self.is_attacked(i, attacker) {
-                attacked |= i.as_mask()
+        let mut accumulator = 0;
+        let all_pieces = self.side_bitboards(Side::White).combined()
+            | self.side_bitboards(Side::Black).combined();
+        for i in (0..64).map(|i| Position::from_index(i)) {
+            let Some(found_piece) = self.get_piece_at(i) else {
+                continue;
+            };
+            if let None = found_piece.filter_side(attacker) {
+                continue;
+            };
+            let role = found_piece.role();
+
+            accumulator |= match role {
+                PieceType::King => KING_DIRECTIONS
+                    .iter()
+                    .copied()
+                    .filter_map(|off| i.with_offset(off))
+                    .fold(0, |acc, i| acc | i.as_mask()),
+                PieceType::Pawn => choose_pawn_direction(attacker)
+                    .iter()
+                    .copied()
+                    .filter_map(|off| i.with_offset(off))
+                    .fold(0, |acc, i| acc | i.as_mask()),
+                PieceType::Knight => KNIGHT_DIRECTIONS
+                    .iter()
+                    .copied()
+                    .filter_map(|off| i.with_offset(off))
+                    .fold(0, |acc, i| acc | i.as_mask()),
+                PieceType::Queen => simple_traverse(i, all_pieces, QUEEN_DIRECTIONS),
+                PieceType::Rook => simple_traverse(i, all_pieces, ROOK_DIRECTIONS),
+                PieceType::Bishop => simple_traverse(i, all_pieces, BISHOP_DIRECTIONS),
             }
         }
-        attacked
+
+        accumulator
     }
-    pub fn is_attacked(&self, pos: Position, enemy: Side) -> bool {
-        use PieceType::*;
-        let ally_data = self.side_bitboards(enemy.opposite());
-        let enemy_data = self.side_bitboards(enemy);
-        let can_king = KING_MASKS[*pos as usize].sum & enemy_data[KING] != 0;
-        if can_king {
-            return true;
-        }
-
-        let yo = match enemy {
-            Side::White => -1,
-            Side::Black => 1,
-        };
-        if let Some(pos) = pos.with_offset(Offset::new(0, yo))
-            && enemy_data[PAWN] & PAWN_TAKE_MASKS[*pos as usize].sum != 0
-        {
-            return true;
-        }
-
-        if KNIGHT_MASKS[*pos as usize].sum & enemy_data[KNIGHT] != 0 {
-            return true;
-        }
-
-        let mut moves = Vec::new();
-        find_rook(
-            &mut moves,
-            pos,
-            ally_data.combined(),
-            enemy_data.combined(),
-            self,
-        );
-        for i in moves.drain(..) {
-            if let Some(taken) = i.take
-                && let Some(filtered) = taken.filter_side(enemy)
-                && matches!(filtered.piece_type, Rook | Queen)
-            {
-                return true;
-            }
-        }
-        let mut moves = Vec::new();
-        find_bishop(
-            &mut moves,
-            pos,
-            ally_data.combined(),
-            enemy_data.combined(),
-            self,
-        );
-        for i in moves.drain(..) {
-            if let Some(taken) = i.take
-                && let Some(filtered) = taken.filter_side(enemy)
-                && matches!(filtered.piece_type, Bishop | Queen)
-            {
-                return true;
-            }
-        }
-
-        false
+    pub fn is_attacked_by(&self, pos: Position, enemy: Side) -> bool {
+        self.get_attacked_pseudo(enemy) & pos.as_mask() != 0
     }
+    pub fn is_attacked(&self, pos: Position) -> bool {
+        match self.get_piece_at(pos) {
+            Some(piece) => self.is_attacked_by(pos, piece.side().opposite()),
+            None => self.is_attacked_by(pos, Side::White) || self.is_attacked_by(pos, Side::Black),
+        }
+    }
+}
+
+fn choose_pawn_direction(side: Side) -> [Offset; 2] {
+    match side {
+        Side::White => WHITE_PAWN_DIRECTIONS,
+        Side::Black => BLACK_PAWN_DIRECTIONS,
+    }
+}
+
+fn simple_traverse<const N: usize>(pos: Position, all_pieces: u64, dirs: [Offset; N]) -> u64 {
+    let mut acc = 0;
+    for i in dirs {
+        for mult in 1..8 {
+            let Some(multiplied) = i.mul(mult) else {
+                break;
+            };
+            let Some(off_pos) = pos.with_offset(multiplied) else {
+                break;
+            };
+            acc |= off_pos.as_mask();
+            if all_pieces & off_pos.as_mask() != 0 {
+                break;
+            }
+        }
+    }
+    acc
 }

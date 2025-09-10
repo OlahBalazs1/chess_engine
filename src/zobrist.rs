@@ -4,9 +4,9 @@ use crate::{
     piece::{Piece, PieceType, Side},
     position::Position,
 };
+use PieceType::*;
 use rand::prelude::*;
 use std::sync::LazyLock;
-use PieceType::*;
 
 pub static ZOBRIST_RANDOM: LazyLock<ZobristRandom> =
     LazyLock::new(|| ZobristRandom::seeded_init(b"Lorem ipsum dolor sit amet nisi."));
@@ -20,11 +20,6 @@ pub struct ZobristRandom {
 }
 
 impl ZobristRandom {
-    // I'll need a custom pseudorandom generator to generate numbers deterministically at compile time
-    pub const fn const_init() -> Self {
-        todo!()
-    }
-
     pub fn seeded_init(seed: &[u8; 32]) -> Self {
         let mut rng = SmallRng::from_seed(*seed);
         Self {
@@ -98,6 +93,7 @@ pub trait ZobristHash {
     fn update_ep_square(&mut self, side: Side, before: Option<Position>, after: Option<Position>);
 }
 
+// TODO: Use a struct for encapsulation
 impl ZobristHash for u64 {
     #[inline]
     fn update(&mut self, piece: Piece, pos: Position) {
