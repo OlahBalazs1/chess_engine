@@ -302,6 +302,41 @@ fn rook_indices(pos: Position) -> Vec<u8> {
     indices
 }
 
+pub fn test_rook_indices() {
+    // top left, top row, top right, middle left, middle middle, middle right, bottom left, bottom
+    // middle, bottom right
+    let test_states = [
+        Position::new(0, 0),
+        Position::new(4, 0),
+        Position::new(7, 0),
+        Position::new(0, 4),
+        Position::new(4, 4),
+        Position::new(7, 4),
+        Position::new(0, 7),
+        Position::new(4, 7),
+        Position::new(7, 7),
+    ];
+    let answers: [u64; 9] = [
+        0x101010101017e,
+        0x1010101010106e,
+        0x8080808080807e,
+        0x1017e01010100,
+        0x10106e10101000,
+        0x80807e80808000,
+        0x7e01010101010100,
+        0x6e10101010101000,
+        0x7e80808080808000,
+    ];
+
+    for (test, answer) in iter::zip(test_states, answers) {
+        let indices = rook_indices(test);
+        let temp = indices.iter().fold(0_u64, |acc, i| acc | (1 << i));
+        if temp != answer {
+            panic!("Bad index: {}\n expected: {}\n got: {}", test, answer, temp);
+        }
+    }
+}
+
 fn generate_bishop_blockers(pos: Position) -> Box<[u64]> {
     let indices = bishop_indices(pos);
     let mut blockers = vec![];

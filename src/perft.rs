@@ -151,11 +151,12 @@ fn perft_search_copy<const N: usize>(
         return;
     }
     let (pin, check) = board.state.legal_data();
+    let (pin_state, check_path) = board.state.legal_data();
     let attacked = board.state.get_attacked(board.side().opposite());
 
-    let moves = board.find_all_moves(pin, check, 0);
+    // let moves = board.find_pseudo_and_legal(board.side(), &pin_state, &check_path);
     // results[N - depth] += moves.len() as u32;
-    // let moves = board.find_all_moves(pin, check, attacked);
+    let moves = board.find_all_moves(pin, check, attacked);
     for mov in moves {
         let mut board_clone = board.clone();
         board_clone.make(&mov);
@@ -182,34 +183,13 @@ fn perft_search_copy<const N: usize>(
             }
         }
 
-        // if board_clone.state.can_be_taken(
-        //     board_clone.side_king(board_clone.side()),
-        //     board_clone.side().opposite(),
-        // ) {
-        //     let mov_entry = move_counts.entry(mov).or_insert(0);
-        //     *mov_entry += 1;
-        // }
-
-        // if mov.piece_type() == King {
-        //     increment_counter();
-        // }
-
-        // if CheckPath::find(
-        //     &board_clone.state,
-        //     board_clone.state.find_king(board.side().opposite()),
-        //     board_clone.side(),
-        // )
-        // .is_check()
-        // {
-        //     continue;
-        // }
-        // println!("{:?}", board_clone.state);
-        // print_bits(board_clone.attacked);
         perft_search_copy(board_clone, results, depth - 1);
-        // if board_clone != board_archive {
-        //     println!("Mismatch: {:?}", mov);
-        //     return;
-        // }
+    }
+}
+fn is_reintroduced(typ: PieceType) -> bool {
+    match typ {
+        Rook => true,
+        _ => false,
     }
 }
 
@@ -221,18 +201,18 @@ fn pseudo_perft_copy<const N: usize>(
     if depth == 0 {
         return;
     }
-    let moves = board.find_all_pseudo(board.side());
+    let (pin_state, check_path) = board.state.legal_data();
+    let no_check_path = CheckPath::None;
+    let no_pin_state = PinState::default();
+    let moves = board.find_pseudo_and_legal(board.side(), &no_pin_state, &no_check_path);
     for mov in moves {
         let mut board_copy = board.clone();
-        if board_copy.get_piece_at(mov.to()).is_some()
-            && mov.take.is_none()
-            && board_copy.is_attacked(mov.to())
-        {
-            panic!("is attacked is bad");
-        }
         if let Some(taken_piece) = board_copy.get_piece_at(mov.to())
             && taken_piece.side() == board_copy.side()
         {
+            if is_reintroduced(mov.piece_type()) {
+                panic!("Legal committed friendly fire");
+            }
             continue;
         }
         board_copy.make(&mov);
@@ -242,6 +222,9 @@ fn pseudo_perft_copy<const N: usize>(
         let king = board_copy.side_king(board_copy.side().opposite());
 
         if board_copy.is_attacked(king) {
+            // if is_reintroduced(mov.piece_type()) {
+            //     panic!("Legal left king hanging: {:?}", mov.piece_type());
+            // }
             continue;
         }
 

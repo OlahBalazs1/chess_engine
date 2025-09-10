@@ -8,7 +8,7 @@ use std::{
 };
 
 use board::{BoardState, SearchBoard};
-use magic_bitboards::{print_bits, MAGIC_MOVER};
+use magic_bitboards::{MAGIC_MOVER, print_bits};
 use position::Position;
 use search_data::{CheckPath, PinState};
 
@@ -28,6 +28,8 @@ mod search_masks;
 mod zobrist;
 
 use engine::perft::*;
+
+use crate::magic_bitboards::test_rook_indices;
 
 fn main() {
     //     "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1",
@@ -62,4 +64,8 @@ fn main() {
     //         .get_bishop(Position::new(0, 4), 0x7effff0500000000)
     //         .bitboard,
     // );
+}
+
+fn run_tests() {
+    test_rook_indices();
 }

@@ -50,8 +50,11 @@ use crate::{
     moving::{Move, MoveType},
     piece::{self, Piece, PieceType, Side},
     position::{Offset, Position},
+    search_data::{CheckPath, PinState},
     search_masks::{KING_MASKS, KNIGHT_MASKS, PAWN_TAKE_MASKS},
 };
+
+use crate::search::find_rook as legal_rook;
 
 pub fn find_pawn(
     moves: &mut Vec<Move>,
@@ -278,6 +281,44 @@ impl SearchBoard {
                     self.state.en_passant_square,
                 ),
                 Some(Rook) => find_rook(&mut moves, i, allies, enemies, self),
+                // Some(Rook) => find_rook(&mut moves, i, self, &pin_state, &check_paths),
+                Some(Knight) => find_knight(&mut moves, i, self),
+                Some(Bishop) => find_bishop(&mut moves, i, allies, enemies, self),
+                Some(Queen) => find_queen(&mut moves, i, allies, enemies, self),
+                Some(King) => find_king(&mut moves, i, self),
+                None => continue,
+            }
+        }
+
+        moves
+    }
+    pub fn find_pseudo_and_legal(
+        &self,
+        side: Side,
+        pin_state: &PinState,
+        check_paths: &CheckPath,
+    ) -> Vec<Move> {
+        use PieceType::*;
+        let mut moves = Vec::new();
+        let allies = self.side_bitboards(side).combined();
+        let enemies = self.side_bitboards(side.opposite()).combined();
+        let all_square_data = &self.state.board;
+        for i in (0..64).map(Position::from_index) {
+            let Some(found_piece) = self.get_piece_at(i) else {
+                continue;
+            };
+            match found_piece.filter_side(side).map(|i| i.piece_type) {
+                Some(Pawn) => find_pawn(
+                    &mut moves,
+                    i,
+                    side,
+                    allies,
+                    enemies,
+                    all_square_data,
+                    self.state.en_passant_square,
+                ),
+                // Some(Rook) => find_rook(&mut moves, i, allies, enemies, self),
+                Some(Rook) => legal_rook(&mut moves, i, self, pin_state, check_paths),
                 Some(Knight) => find_knight(&mut moves, i, self),
                 Some(Bishop) => find_bishop(&mut moves, i, allies, enemies, self),
                 Some(Queen) => find_queen(&mut moves, i, allies, enemies, self),

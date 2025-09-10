@@ -4,14 +4,14 @@ use crate::board::BoardState;
 use crate::board_repr::{Bitboards, BoardRepr};
 use crate::piece::Piece;
 use crate::search_data::{CheckPath, PinState};
-use crate::search_masks::{SingularData, KING_MASKS, KNIGHT_MASKS, PAWN_TAKE_MASKS};
+use crate::search_masks::{KING_MASKS, KNIGHT_MASKS, PAWN_TAKE_MASKS, SingularData};
 use std::ops::{Deref, Index, Range};
 use std::sync::Arc;
 use std::{iter, pin, u64};
 
 use crate::{
     board::SearchBoard,
-    magic_bitboards::{MagicMover, MAGIC_MOVER},
+    magic_bitboards::{MAGIC_MOVER, MagicMover},
     moving::{Move, MoveType},
     piece::{PieceType, Side},
     position::{Offset, Position},
