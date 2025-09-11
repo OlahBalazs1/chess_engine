@@ -3,7 +3,7 @@ use std::pin::Pin;
 use crate::{
     board::{BoardState, SearchBoard},
     board_repr::{BISHOP, KNIGHT, PAWN, QUEEN, ROOK},
-    magic_bitboards::{print_bits, MagicData, MagicMover, MAGIC_MOVER},
+    magic_bitboards::{MAGIC_MOVER, MagicData, MagicMover, print_bits},
     piece::Side,
     position::Position,
     search_masks::{KNIGHT_MASKS, PAWN_TAKE_MASKS},
@@ -103,8 +103,8 @@ impl CheckPath {
         magic_mover: &MagicMover,
     ) -> Self {
         let mut path = CheckPath::None;
-        let bitboards = board.side_bitboard(side);
-        let allies = board.side_bitboard(side.opposite()).combined();
+        let bitboards = board.side_bitboards(side);
+        let allies = board.side_bitboards(side.opposite()).combined();
         let enemies = bitboards.combined();
 
         for i in KNIGHT_MASKS[*king_pos as usize].parts.iter().copied() {
@@ -162,8 +162,8 @@ impl PinState {
         self.diagonal_1 | self.diagonal_2 | self.x_aligned | self.y_aligned
     }
     fn find_with(state: &BoardState, king_pos: Position, magic_mover: &MagicMover) -> Self {
-        let ally_bitboards = state.side_bitboard(state.side);
-        let enemy_bitboards = state.side_bitboard(state.side.opposite());
+        let ally_bitboards = state.side_bitboards(state.side);
+        let enemy_bitboards = state.side_bitboards(state.side.opposite());
         let king_mask = king_pos.as_mask();
 
         let friendlies = ally_bitboards.combined();

@@ -2,11 +2,11 @@ use std::cell::LazyCell;
 use std::fmt::{Debug, Display};
 use std::hash::Hash;
 use std::mem;
-use std::ops::{Index, IndexMut};
+use std::ops::{Deref, DerefMut, Index, IndexMut};
 use std::pin::Pin;
 
 use crate::board_repr::*;
-use crate::magic_bitboards::{print_bits, MAGIC_MOVER};
+use crate::magic_bitboards::{MAGIC_MOVER, print_bits};
 use crate::moving::{Castle, Move, MoveType, Unmove};
 use crate::piece::{self, Piece, PieceType, Side};
 use crate::position::{self, Position};
@@ -39,37 +39,6 @@ macro_rules! side_castle_rights {
 }
 
 impl SearchBoard {
-    pub fn side(&self) -> Side {
-        self.state.side
-    }
-
-    pub fn get_bitboard_mut(&mut self, piece: Piece) -> &mut u64 {
-        self.side_bitboards_mut(piece.side())
-            .get_bitboard_mut(piece.role())
-    }
-    pub fn curr_side_bitboards(&self) -> &Bitboards {
-        self.side_bitboards(self.side())
-    }
-
-    pub fn side_bitboards(&self, side: Side) -> &Bitboards {
-        self.state.side_bitboard(side)
-    }
-
-    pub fn side_bitboards_mut(&mut self, side: Side) -> &mut Bitboards {
-        self.state.side_bitboard_mut(side)
-    }
-
-    pub fn get_piece_at(&self, pos: Position) -> Option<Piece> {
-        self.state.piece_at_position(pos)
-    }
-
-    pub fn side_king(&self, side: Side) -> Position {
-        self.state.side_king(side)
-    }
-    pub fn side_king_mut(&mut self, side: Side) -> &mut Position {
-        self.state.side_king_mut(side)
-    }
-
     pub fn find_all_moves(
         &self,
         pin_state: PinState,
@@ -286,6 +255,18 @@ impl SearchBoard {
     }
 }
 
+impl Deref for SearchBoard {
+    type Target = BoardState;
+    fn deref(&self) -> &Self::Target {
+        &self.state
+    }
+}
+impl DerefMut for SearchBoard {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.state
+    }
+}
+
 impl Default for SearchBoard {
     fn default() -> Self {
         Self {
@@ -310,9 +291,12 @@ pub struct BoardState {
 }
 
 impl BoardState {
+    pub fn side(&self) -> Side {
+        self.side
+    }
     pub fn can_be_taken(&self, pos: Position, enemy: Side) -> bool {
-        let enemies = self.side_bitboard(enemy);
-        let allies = self.side_bitboard(enemy.opposite()).combined();
+        let enemies = self.side_bitboards(enemy);
+        let allies = self.side_bitboards(enemy.opposite()).combined();
 
         let pawn_lookup_pos = match self.side {
             Side::White => pos.add_x(1).unwrap(),
@@ -380,7 +364,7 @@ impl BoardState {
         let mut attacked_squares = 0;
 
         let all = (self.white.combined() | self.black.combined())
-            & !(self.side_bitboard(enemy.opposite())[KING]);
+            & !(self.side_bitboards(enemy.opposite())[KING]);
 
         let pieces = self
             .board
@@ -431,7 +415,20 @@ impl BoardState {
             } => self.black.get_bitboard(piece),
         }
     }
-    pub fn piece_at_position(&self, pos: Position) -> Option<Piece> {
+    pub fn get_bitboard_mut(&mut self, piece: Piece) -> &mut u64 {
+        use Side::*;
+        match piece {
+            Piece {
+                side: White,
+                piece_type: piece,
+            } => self.white.get_bitboard_mut(piece),
+            Piece {
+                side: Black,
+                piece_type: piece,
+            } => self.black.get_bitboard_mut(piece),
+        }
+    }
+    pub fn get_piece_at(&self, pos: Position) -> Option<Piece> {
         self.board.get(pos)
     }
 
@@ -565,14 +562,14 @@ impl BoardState {
         }
     }
 
-    pub fn side_bitboard_mut(&mut self, side: Side) -> &mut Bitboards {
+    pub fn side_bitboards_mut(&mut self, side: Side) -> &mut Bitboards {
         match side {
             Side::White => &mut self.white,
             Side::Black => &mut self.black,
         }
     }
 
-    pub fn side_bitboard(&self, side: Side) -> &Bitboards {
+    pub fn side_bitboards(&self, side: Side) -> &Bitboards {
         match side {
             Side::White => &self.white,
             Side::Black => &self.black,
