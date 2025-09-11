@@ -1,5 +1,5 @@
 use owo_colors::{OwoColorize, colors::White};
-const ROOK_DIRECTIONS: [Offset; 4] = [
+pub const ROOK_DIRECTIONS: [Offset; 4] = [
     Offset::new(1, 0),
     Offset::new(0, 1),
     Offset::new(-1, 0),
@@ -54,7 +54,9 @@ use crate::{
     search_masks::{KING_MASKS, KNIGHT_MASKS, PAWN_TAKE_MASKS},
 };
 
-use crate::search::find_rook as legal_rook;
+use crate::search::{
+    find_bishop as legal_bishop, find_queen as legal_queen, find_rook as legal_rook,
+};
 
 pub fn find_pawn(
     moves: &mut Vec<Move>,
@@ -320,8 +322,8 @@ impl SearchBoard {
                 // Some(Rook) => find_rook(&mut moves, i, allies, enemies, self),
                 Some(Rook) => legal_rook(&mut moves, i, self, pin_state, check_paths),
                 Some(Knight) => find_knight(&mut moves, i, self),
-                Some(Bishop) => find_bishop(&mut moves, i, allies, enemies, self),
-                Some(Queen) => find_queen(&mut moves, i, allies, enemies, self),
+                Some(Bishop) => legal_bishop(&mut moves, i, self, pin_state, check_paths),
+                Some(Queen) => legal_queen(&mut moves, i, self, pin_state, check_paths),
                 Some(King) => find_king(&mut moves, i, self),
                 None => continue,
             }

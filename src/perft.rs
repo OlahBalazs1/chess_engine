@@ -204,15 +204,15 @@ fn pseudo_perft_copy<const N: usize>(
     let (pin_state, check_path) = board.state.legal_data();
     let no_check_path = CheckPath::None;
     let no_pin_state = PinState::default();
-    let moves = board.find_pseudo_and_legal(board.side(), &no_pin_state, &no_check_path);
-    for mov in moves {
+    let moves = board.find_all_pseudo(board.side());
+    for mov in moves.iter().copied() {
         let mut board_copy = board.clone();
         if let Some(taken_piece) = board_copy.get_piece_at(mov.to())
             && taken_piece.side() == board_copy.side()
         {
-            if is_reintroduced(mov.piece_type()) {
-                panic!("Legal committed friendly fire");
-            }
+            // if is_reintroduced(mov.piece_type()) {
+            //     panic!("Legal committed friendly fire");
+            // }
             continue;
         }
         board_copy.make(&mov);
@@ -234,15 +234,9 @@ fn pseudo_perft_copy<const N: usize>(
             // are there any moves of the enemy?
             let moves = board_copy.find_all_pseudo(board_copy.side());
 
-            let filtered_moves = moves
-                .iter()
-                .filter(|mov| {
-                    let mut board_copy = board_copy.clone();
-                    board_copy.make(&mov);
-                    let king = board_copy.side_king(board_copy.side().opposite());
-                    !board_copy.is_attacked_by(king, board_copy.side())
-                })
-                .collect::<Vec<_>>();
+            let mut filtered_moves = Vec::with_capacity(moves.len());
+            filter_moves_and(&board_copy, &moves, |i| filtered_moves.push(*i));
+
             if filtered_moves.len() == 0 {
                 results[N - depth].add_checkmate();
             } else {
@@ -253,6 +247,14 @@ fn pseudo_perft_copy<const N: usize>(
         results[N - depth].add_normal(mov);
         pseudo_perft_copy(board_copy, results, depth - 1);
     }
+    let mixed_moves = board.find_pseudo_and_legal(board.side(), &no_pin_state, &no_check_path);
+    let mut mixed_filtered = Vec::with_capacity(mixed_moves.len());
+    filter_moves_and(&board, &mixed_moves, |i| mixed_filtered.push(*i));
+    filter_moves_and(&board, &moves, |i| {
+        if !mixed_filtered.contains(i) {
+            panic!("{}\nMixed doesn't contain: {}", board.state, i)
+        }
+    });
 }
 
 pub fn test<const N: usize>() {
@@ -341,5 +343,24 @@ pub fn pseudo_test<const N: usize>() {
             copy.checks,
             copy.checkmates
         );
+    }
+}
+
+fn filter_moves_and<F: FnMut(&Move) -> ()>(board: &SearchBoard, moves: &[Move], mut f: F) {
+    for mov in moves {
+        let mut board_copy = board.clone();
+        if board_copy
+            .get_piece_at(mov.to())
+            .is_some_and(|i| i.side() == board_copy.side())
+        {
+            continue;
+        }
+        board_copy.make(mov);
+
+        if board_copy.is_attacked(board_copy.side_king(board_copy.side().opposite())) {
+            continue;
+        }
+
+        f(mov)
     }
 }

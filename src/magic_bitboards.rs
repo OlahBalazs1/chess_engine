@@ -43,7 +43,6 @@ impl MagicDataBuilder {
     fn finalize(self) -> MagicData {
         MagicData {
             normal: self.normal.into_boxed_slice(),
-            takes: self.takes.into_boxed_slice(),
             ends: self.ends.into_boxed_slice(),
             bitboard: self.bitboard,
         }
@@ -53,15 +52,14 @@ impl MagicDataBuilder {
 #[derive(Clone, Debug)]
 pub struct MagicData {
     pub normal: Box<[Position]>,
-    pub takes: Box<[Position]>,
     pub ends: Box<[Position]>,
     pub bitboard: u64,
 }
 use std::iter::{Chain, Copied};
 use std::slice::Iter;
 impl MagicData {
-    pub fn possible_takes(&self) -> Chain<Copied<Iter<'_, Position>>, Copied<Iter<'_, Position>>> {
-        self.takes.iter().copied().chain(self.ends.iter().copied())
+    pub fn possible_takes(&self) -> Copied<Iter<Position>> {
+        self.ends.iter().copied()
     }
 }
 
@@ -236,7 +234,7 @@ impl SquareMagic {
     }
 }
 
-fn slide_blocker_possible_moves<const N: usize>(
+pub fn slide_blocker_possible_moves<const N: usize>(
     blocker_config: u64,
     start_pos: Position,
     offsets: [Offset; N],
@@ -244,7 +242,7 @@ fn slide_blocker_possible_moves<const N: usize>(
     let mut moves = MagicDataBuilder::new();
     for offset in offsets {
         let mut last_non_take = None;
-        for i in 1..7 {
+        for i in 1..8 {
             if let Some(next) = start_pos.with_offset(offset.mul(i).unwrap()) {
                 if blocker_config & next.as_mask() == 0 {
                     if let Some(normal) = last_non_take.take() {
@@ -252,7 +250,7 @@ fn slide_blocker_possible_moves<const N: usize>(
                     }
                     last_non_take = Some(next);
                 } else {
-                    moves.add_take(next);
+                    moves.add_end(next);
                     if let Some(normal) = last_non_take.take() {
                         moves.add_normal(normal);
                     }
