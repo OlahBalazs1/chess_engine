@@ -12,7 +12,6 @@ use std::{
 use crate::{
     board::SearchBoard,
     board_repr::KING,
-    engine::perft,
     magic_bitboards::{MAGIC_MOVER, init_magic_mover, print_bits},
     moving::{Move, MoveType, Unmove},
     perft_data::PerftData,
@@ -142,10 +141,6 @@ fn is_reintroduced(typ: PieceType) -> bool {
     }
 }
 
-// Notes:
-// positive failure = a failure in movegen that causes a movegen that increases the number of
-// generated moves
-// - PinState and CheckPath don't cause positive failures in Rook, Bishop and Queen
 fn pseudo_perft_copy<const N: usize>(
     board: SearchBoard,
     results: &mut [PerftData; N],
