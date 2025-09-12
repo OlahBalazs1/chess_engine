@@ -136,7 +136,7 @@ impl SearchBoard {
                     1 << (side.home_y() * 8) | (1 << (2 + side.home_y() * 8));
             }
             MoveType::EnPassant => {
-                let ep_pawn = mov.to().with_y(side.pers_y(3)).unwrap();
+                let ep_pawn = mov.to().with_y(side.pers_y(4)).unwrap();
                 increment_halfmove = false;
                 enemies!(side, self).state[PAWN] ^= ep_pawn.as_mask();
 

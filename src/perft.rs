@@ -69,7 +69,6 @@ fn perft_search<const N: usize>(
     let moves = board.find_all_moves(pin_state, check_path, attacked);
 
     for mov in moves {
-        let board_copy = board.clone();
         results[N - depth].add_normal(mov);
         let unmove = Unmove::new(&mov, board);
         board.make(&mov);
@@ -114,10 +113,7 @@ fn perft_search_copy<const N: usize>(
     let moves = board.find_all_moves(pin, check, attacked);
     for mov in moves {
         let mut board_clone = board.clone();
-        let mut board_clone_ii = board.clone();
         board_clone.make(&mov);
-        let unmove = Unmove::new(&mov, &board_clone_ii);
-        board_clone_ii.make(&mov);
 
         // logging stuff
         let attacked = board_clone
@@ -134,16 +130,6 @@ fn perft_search_copy<const N: usize>(
         }
         // logging end
         //
-        if matches!(mov.move_type, MoveType::EnPassant) {
-            panic!("EP encountered: {:}\n{}", mov, mov)
-        }
-        board_clone_ii.unmake(unmove);
-        if board_clone_ii != board {
-            panic!(
-                "before:{:?}\nafter:{:?}\nmove:{:?}\n{}",
-                *board, *board_clone_ii, mov, mov
-            );
-        }
 
         perft_search_copy(board_clone, results, depth - 1);
         results[N - depth].add_normal(mov);
