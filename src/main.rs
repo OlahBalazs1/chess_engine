@@ -37,7 +37,7 @@ use crate::{
 fn main() {
     const DEPTH: usize = 5;
 
-    pseudo_test::<DEPTH>();
+    test::<DEPTH>();
     //
     // let data =
     //     slide_blocker_possible_moves(0xfffe00010101fefe, Position::new(0, 2), ROOK_DIRECTIONS);

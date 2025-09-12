@@ -55,7 +55,8 @@ use crate::{
 };
 
 use crate::search::{
-    find_bishop as legal_bishop, find_queen as legal_queen, find_rook as legal_rook,
+    find_bishop as legal_bishop, find_king as legal_king, find_knight as legal_knight,
+    find_pawn as legal_pawn, find_queen as legal_queen, find_rook as legal_rook,
 };
 
 pub fn find_pawn(
@@ -297,6 +298,7 @@ impl SearchBoard {
     pub fn find_pseudo_and_legal(
         &self,
         side: Side,
+        attacked: u64,
         pin_state: &PinState,
         check_paths: &CheckPath,
     ) -> Vec<Move> {
@@ -310,21 +312,13 @@ impl SearchBoard {
                 continue;
             };
             match found_piece.filter_side(side).map(|i| i.piece_type) {
-                Some(Pawn) => find_pawn(
-                    &mut moves,
-                    i,
-                    side,
-                    allies,
-                    enemies,
-                    all_square_data,
-                    self.state.en_passant_square,
-                ),
+                Some(Pawn) => legal_pawn(&mut moves, i, self, pin_state, check_paths),
                 // Some(Rook) => find_rook(&mut moves, i, allies, enemies, self),
                 Some(Rook) => legal_rook(&mut moves, i, self, pin_state, check_paths),
-                Some(Knight) => find_knight(&mut moves, i, self),
+                Some(Knight) => legal_knight(&mut moves, i, self, pin_state, check_paths),
                 Some(Bishop) => legal_bishop(&mut moves, i, self, pin_state, check_paths),
                 Some(Queen) => legal_queen(&mut moves, i, self, pin_state, check_paths),
-                Some(King) => find_king(&mut moves, i, self),
+                Some(King) => legal_king(&mut moves, i, self, check_paths, attacked),
                 None => continue,
             }
         }

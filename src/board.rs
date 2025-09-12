@@ -180,11 +180,12 @@ impl SearchBoard {
 
     pub fn unmake(&mut self, unmove: Unmove) {
         self.state.side = self.state.side.opposite();
-        let side = self.state.side;
+        let ally_side = self.state.side;
         let mov = unmove.mov;
 
         let piece = mov.piece_type();
-        *allies!(side, self).get_bitboard_mut(piece) ^= mov.from().as_mask() | mov.to().as_mask();
+        *allies!(ally_side, self).get_bitboard_mut(piece) ^=
+            mov.from().as_mask() | mov.to().as_mask();
 
         if let Some(taken) = mov.take {
             *self.get_bitboard_mut(taken) ^= mov.to().as_mask();
@@ -197,36 +198,39 @@ impl SearchBoard {
         match mov.move_type {
             MoveType::Promotion(p) => {
                 self.state.board.board[*mov.to() as usize] = None;
-                allies!(side, self).state[PAWN] ^= mov.to().as_mask();
-                *allies!(side, self).get_bitboard_mut(p) ^= mov.to().as_mask();
+                allies!(ally_side, self).state[PAWN] ^= mov.to().as_mask();
+                *allies!(ally_side, self).get_bitboard_mut(p) ^= mov.to().as_mask();
             }
             MoveType::LongCastle => {
-                self.state.board.board[(7 + side.home_y() * 8) as usize] = mem::replace(
-                    &mut self.state.board.board[(5 + side.home_y() * 8) as usize],
+                self.state.board.board[(7 + ally_side.home_y() * 8) as usize] = mem::replace(
+                    &mut self.state.board.board[(5 + ally_side.home_y() * 8) as usize],
                     None,
                 );
-                allies!(side, self).state[ROOK] ^=
-                    1 << (5 + side.home_y() * 8) | (1 << (7 + side.home_y() * 8));
+                allies!(ally_side, self).state[ROOK] ^=
+                    1 << (5 + ally_side.home_y() * 8) | (1 << (7 + ally_side.home_y() * 8));
             }
             MoveType::ShortCastle => {
-                self.state.board.board[(side.home_y() * 8) as usize] = mem::replace(
-                    &mut self.state.board.board[(2 + side.home_y() * 8) as usize],
+                self.state.board.board[(ally_side.home_y() * 8) as usize] = mem::replace(
+                    &mut self.state.board.board[(2 + ally_side.home_y() * 8) as usize],
                     None,
                 );
-                allies!(side, self).state[ROOK] ^=
-                    1 << (side.home_y() * 8) | (1 << (2 + side.home_y() * 8));
+                allies!(ally_side, self).state[ROOK] ^=
+                    1 << (ally_side.home_y() * 8) | (1 << (2 + ally_side.home_y() * 8));
             }
             MoveType::EnPassant => {
-                let ep_pawn = mov.to().with_y(side.pers_y(3)).unwrap();
-                enemies!(side, self).state[PAWN] ^= ep_pawn.as_mask();
+                // the pawn that is taken
+                let ep_pawn = mov.to().with_y(ally_side.pers_y(4)).unwrap();
+                // restore taken pawn
+                enemies!(ally_side, self).state[PAWN] |= ep_pawn.as_mask();
 
-                self.state.board.board[*ep_pawn as usize] = Some(PieceType::Pawn.with_side(side));
+                self.state.board.board[*ep_pawn as usize] =
+                    Some(PieceType::Pawn.with_side(ally_side.opposite()));
             }
             _ => {}
         }
 
         if piece == PieceType::King {
-            *self.side_king_mut(side) = mov.from;
+            *self.side_king_mut(ally_side) = mov.from;
         }
 
         self.state.en_passant_square = unmove.en_passant_square;

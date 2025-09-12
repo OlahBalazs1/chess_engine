@@ -64,29 +64,12 @@ fn perft_search<const N: usize>(
     if depth == 0 {
         return;
     }
-    let (pin_state, check_path) = board.state.legal_data();
-    if check_path.is_check() {
-        results[N - depth].add_check();
-    }
-    let attacked_squares = board.state.get_attacked(board.side().opposite());
-    let moves = board.find_all_moves(pin_state, check_path, attacked_squares);
+    let (pin_state, check_path) = board.legal_data();
+    let attacked = board.state.get_attacked(board.side().opposite());
+    let moves = board.find_all_moves(pin_state, check_path, attacked);
 
-    // if moves.len() == 0 {
-    //     if check_path.is_check() {
-    //         println!("Checkmate")
-    //     } else {
-    //         println!("Stalemate")
-    //     }
-    // }
-    // if pin_state.combined() != 0 {
-    //     print_bits(pin_state.combined());
-    // }
     for mov in moves {
-        // let board_clone = board.clone();
-        // let check_before = check_path.is_check();
-        // if check_before {
-        //     println!("{}", board.state);
-        // }
+        let board_copy = board.clone();
         results[N - depth].add_normal(mov);
         let unmove = Unmove::new(&mov, board);
         board.make(&mov);
@@ -102,33 +85,8 @@ fn perft_search<const N: usize>(
             }
         }
 
-        // if let Some(taken) = mov.take {
-        //     if mov.piece_type() == Pawn && mov.to().x() == mov.from().x() {
-        //         panic!("Bad pawn take")
-        //     }
-        // }
-
-        // match board.check_paths {
-        //     CheckPath::Blockable(path) => {
-        //         print_bits(path);
-        //         increment_counter();
-        //     }
-        //     CheckPath::Multiple => panic!("Wrong checkpath"),
-        //     CheckPath::None => {}
-        // }
         perft_search(board, results, depth - 1);
         board.unmake(unmove);
-
-        // if board_clone.state != board.state {
-        //     println!("depth: {}", results.len() - depth + 1);
-        //     println!("{:?}", board_clone.state);
-        //     println!("{:?}", board_clone.state.board.get(Position::new(7, 5)));
-        //     println!("{:?}", board.state.board.get(Position::new(7, 5)));
-        //     println!("After: {}", mov);
-        //     // println!("{:?}", board.state); println!("---");
-        //     // println!("{:?}", board_clone.state);
-        //     return;
-        // }
     }
 }
 
@@ -151,25 +109,17 @@ fn perft_search_copy<const N: usize>(
         return;
     }
     let (pin, check) = board.state.legal_data();
-    let (pin_state, check_path) = board.state.legal_data();
     let attacked = board.state.get_attacked(board.side().opposite());
 
-    // let moves = board.find_pseudo_and_legal(board.side(), &pin_state, &check_path);
-    // results[N - depth] += moves.len() as u32;
     let moves = board.find_all_moves(pin, check, attacked);
     for mov in moves {
         let mut board_clone = board.clone();
+        let mut board_clone_ii = board.clone();
         board_clone.make(&mov);
+        let unmove = Unmove::new(&mov, &board_clone_ii);
+        board_clone_ii.make(&mov);
 
-        let king_pos = board_clone.state.side_king(board_clone.side().opposite());
-
-        if board_clone.state.can_be_taken(king_pos, board_clone.side()) {
-            // println!("before: {}", board.state);
-            // println!("{}", board_clone.state);
-            // print_bits(board_clone.state.get_attacked(board.side().opposite()));
-            // print_bits(board_clone.state.get_attacked(board.side()));
-            continue;
-        }
+        // logging stuff
         let attacked = board_clone
             .state
             .get_attacked(board_clone.side().opposite());
@@ -182,8 +132,21 @@ fn perft_search_copy<const N: usize>(
                 results[N - depth].add_checkmate();
             }
         }
+        // logging end
+        //
+        if matches!(mov.move_type, MoveType::EnPassant) {
+            panic!("EP encountered: {:}\n{}", mov, mov)
+        }
+        board_clone_ii.unmake(unmove);
+        if board_clone_ii != board {
+            panic!(
+                "before:{:?}\nafter:{:?}\nmove:{:?}\n{}",
+                *board, *board_clone_ii, mov, mov
+            );
+        }
 
         perft_search_copy(board_clone, results, depth - 1);
+        results[N - depth].add_normal(mov);
     }
 }
 fn is_reintroduced(typ: PieceType) -> bool {
@@ -193,6 +156,10 @@ fn is_reintroduced(typ: PieceType) -> bool {
     }
 }
 
+// Notes:
+// positive failure = a failure in movegen that causes a movegen that increases the number of
+// generated moves
+// - PinState and CheckPath don't cause positive failures in Rook, Bishop and Queen
 fn pseudo_perft_copy<const N: usize>(
     board: SearchBoard,
     results: &mut [PerftData; N],
@@ -247,9 +214,12 @@ fn pseudo_perft_copy<const N: usize>(
         results[N - depth].add_normal(mov);
         pseudo_perft_copy(board_copy, results, depth - 1);
     }
-    let mixed_moves = board.find_pseudo_and_legal(board.side(), &no_pin_state, &no_check_path);
+    let attacked = board.get_attacked(board.side().opposite());
+    let mixed_moves =
+        board.find_pseudo_and_legal(board.side(), attacked, &no_pin_state, &check_path);
     let mut mixed_filtered = Vec::with_capacity(mixed_moves.len());
     filter_moves_and(&board, &mixed_moves, |i| mixed_filtered.push(*i));
+
     filter_moves_and(&board, &moves, |i| {
         if !mixed_filtered.contains(i) {
             panic!("{}\nMixed doesn't contain: {}", board.state, i)
