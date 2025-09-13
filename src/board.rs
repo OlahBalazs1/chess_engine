@@ -11,7 +11,7 @@ use crate::moving::{Castle, Move, MoveType, Unmove};
 use crate::piece::{self, Piece, PieceType, Side};
 use crate::position::{self, Position};
 use crate::search_data::{CheckPath, PinState};
-use crate::search_masks::{KING_MASKS, KNIGHT_MASKS, PAWN_TAKE_MASKS};
+use crate::search_masks::{KING_MASKS, KNIGHT_MASKS, choose_pawn_take_mask};
 use crate::zobrist::*;
 
 use PieceType::*;
@@ -46,7 +46,7 @@ impl SearchBoard {
         attacked_squares: u64,
     ) -> Vec<Move> {
         use crate::search::*;
-        let mut moves = Vec::with_capacity(128);
+        let mut moves = Vec::with_capacity(219);
 
         let pieces = self
             .state
@@ -308,7 +308,7 @@ impl BoardState {
         };
 
         if KNIGHT_MASKS[*pos as usize].sum & enemies[KNIGHT] != 0
-            || PAWN_TAKE_MASKS[*pawn_lookup_pos as usize].sum & enemies[PAWN] != 0
+            || choose_pawn_take_mask(enemy)[*pawn_lookup_pos as usize].sum & enemies[PAWN] != 0
             || KING_MASKS[*pos as usize].sum & enemies[KING] != 0
         {
             return true;
@@ -386,13 +386,7 @@ impl BoardState {
 
         for (pos, piece) in pieces {
             attacked_squares |= match piece.piece_type {
-                Pawn => {
-                    PAWN_TAKE_MASKS[match enemy {
-                        Side::White => *pos + 8,
-                        Side::Black => *pos - 8,
-                    } as usize]
-                        .sum
-                }
+                Pawn => choose_pawn_take_mask(enemy)[*pos as usize].sum,
                 Rook => MAGIC_MOVER.get_rook(pos, all).bitboard,
                 Knight => KNIGHT_MASKS[*pos as usize].sum,
                 Bishop => MAGIC_MOVER.get_bishop(pos, all).bitboard,
@@ -437,7 +431,9 @@ impl BoardState {
     }
 
     pub fn from_fen(fen: &str) -> Self {
-        let [piece_data, active, rights, ep, _, _] = fen.split(" ").collect::<Vec<_>>()[..] else {
+        let split = fen.split(" ").collect::<Vec<_>>();
+        println!("{:?} len: {}", split, split.len());
+        let [piece_data, active, rights, ep, _, _] = fen.split(" ").collect::<Vec<_>>()[..6] else {
             panic!("Invalid FEN")
         };
         let mut white_bits = Bitboards { state: [0; 6] };
@@ -446,6 +442,7 @@ impl BoardState {
             let mut temp = [None; 64];
             let mut square = 0;
             for i in piece_data.chars() {
+                println!("{}", i);
                 match i {
                     '1'..='8' => {
                         square += (i as usize) - (b'0' as usize);

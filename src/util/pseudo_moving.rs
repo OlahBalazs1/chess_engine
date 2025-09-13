@@ -51,7 +51,7 @@ use crate::{
     piece::{self, Piece, PieceType, Side},
     position::{Offset, Position},
     search_data::{CheckPath, PinState},
-    search_masks::{KING_MASKS, KNIGHT_MASKS, PAWN_TAKE_MASKS},
+    search_masks::{KING_MASKS, KNIGHT_MASKS, choose_pawn_take_mask},
 };
 
 use crate::search::{

@@ -1,4 +1,4 @@
-use crate::position::Offset;
+use crate::{piece::Side, position::Offset};
 use array_init::array_init;
 use std::{cell::LazyCell, sync::LazyLock};
 
@@ -63,11 +63,17 @@ impl SingularData {
         }
     }
 
-    fn pawn_takes(index: usize) -> Self {
-        let positions: Vec<_> = [Offset::new(1, 0), Offset::new(-1, 0)]
-            .iter()
-            .filter_map(|&off| Position::from_index(index as u8).with_offset(off))
-            .collect();
+    fn pawn_takes(index: usize, side: Side) -> Self {
+        const WHITE_PAWN_DIRECTIONS: [Offset; 2] = [Offset::new(-1, 1), Offset::new(1, 1)];
+        const BLACK_PAWN_DIRECTIONS: [Offset; 2] = [Offset::new(-1, -1), Offset::new(1, -1)];
+        let positions: Vec<_> = if let Side::White = side {
+            WHITE_PAWN_DIRECTIONS
+        } else {
+            BLACK_PAWN_DIRECTIONS
+        }
+        .iter()
+        .filter_map(|&off| Position::from_index(index as u8).with_offset(off))
+        .collect();
 
         let parts: Vec<_> = positions.iter().map(|i| i.as_mask()).collect();
 
@@ -85,11 +91,21 @@ pub static KNIGHT_MASKS: LazyLock<[SingularData; 64]> =
     LazyLock::new(|| array_init(SingularData::horse_at_index));
 pub static KING_MASKS: LazyLock<[SingularData; 64]> =
     LazyLock::new(|| array_init(SingularData::king_at_index));
-pub static PAWN_TAKE_MASKS: LazyLock<[SingularData; 64]> =
-    LazyLock::new(|| array_init(SingularData::pawn_takes));
+pub static WHITE_PAWN_TAKE_MASKS: LazyLock<[SingularData; 64]> =
+    LazyLock::new(|| array_init(|i| SingularData::pawn_takes(i, Side::White)));
+pub static BLACK_PAWN_TAKE_MASKS: LazyLock<[SingularData; 64]> =
+    LazyLock::new(|| array_init(|i| SingularData::pawn_takes(i, Side::Black)));
 
 pub fn init_masks() {
     let _ = LazyLock::force(&KNIGHT_MASKS);
     let _ = LazyLock::force(&KING_MASKS);
-    let _ = LazyLock::force(&PAWN_TAKE_MASKS);
+    let _ = LazyLock::force(&WHITE_PAWN_TAKE_MASKS);
+    let _ = LazyLock::force(&BLACK_PAWN_TAKE_MASKS);
+}
+
+pub fn choose_pawn_take_mask(side: Side) -> &'static [SingularData; 64] {
+    match side {
+        Side::White => &*WHITE_PAWN_TAKE_MASKS,
+        Side::Black => &*BLACK_PAWN_TAKE_MASKS,
+    }
 }

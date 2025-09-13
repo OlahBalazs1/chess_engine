@@ -6,7 +6,7 @@ use crate::{
     magic_bitboards::{MAGIC_MOVER, MagicData, MagicMover, print_bits},
     piece::Side,
     position::Position,
-    search_masks::{KNIGHT_MASKS, PAWN_TAKE_MASKS},
+    search_masks::{KNIGHT_MASKS, choose_pawn_take_mask},
 };
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -112,14 +112,14 @@ impl CheckPath {
                 update_checkpath!(path, i)
             }
         }
-        let yo = match side {
-            Side::White => |i| i << 8,
-            Side::Black => |i| i >> 8,
-        };
 
-        for i in PAWN_TAKE_MASKS[*king_pos as usize].parts.iter().copied() {
-            if bitboards.state[PAWN] & yo(i) != 0 {
-                update_checkpath!(path, yo(i))
+        for i in choose_pawn_take_mask(side.opposite())[*king_pos as usize]
+            .parts
+            .iter()
+            .copied()
+        {
+            if bitboards.state[PAWN] & i != 0 {
+                update_checkpath!(path, i)
             }
         }
         let diagonal_attackers = bitboards.state[BISHOP] | bitboards.state[QUEEN];

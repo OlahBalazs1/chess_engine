@@ -4,7 +4,7 @@ use crate::board::BoardState;
 use crate::board_repr::{Bitboards, BoardRepr};
 use crate::piece::Piece;
 use crate::search_data::{CheckPath, PinState};
-use crate::search_masks::{KING_MASKS, KNIGHT_MASKS, PAWN_TAKE_MASKS, SingularData};
+use crate::search_masks::{KING_MASKS, KNIGHT_MASKS, SingularData, choose_pawn_take_mask};
 use std::ops::{Deref, Index, Range};
 use std::sync::Arc;
 use std::{iter, pin, u64};
@@ -80,15 +80,13 @@ fn find_pawn_unrestricted(
         Side::White => 1,
         Side::Black => -1,
     };
-    if let Some(can_take) = pos.with_offset(Offset::new(0, yo)) {
-        let data = &PAWN_TAKE_MASKS[*can_take as usize];
+    let data = &choose_pawn_take_mask(side)[*pos as usize];
 
-        for i in data.positions.iter() {
-            if enemies & i.as_mask() != 0 {
-                gen_pawn_moves(moves, pos, *i, all_square_data.get(*i));
-            } else if ep_square.is_some_and(|ep| ep == *i) {
-                moves.push(Move::new(pos, *i, MoveType::EnPassant, None));
-            }
+    for i in data.positions.iter() {
+        if enemies & i.as_mask() != 0 {
+            gen_pawn_moves(moves, pos, *i, all_square_data.get(*i));
+        } else if ep_square.is_some_and(|ep| ep == *i) {
+            moves.push(Move::new(pos, *i, MoveType::EnPassant, None));
         }
     }
     let all_pieces = allies | enemies;
@@ -127,15 +125,13 @@ fn find_pawn_restricted(
         Side::Black => -1,
     };
 
-    if let Some(can_take) = pos.with_offset(Offset::new(0, yo)) {
-        let data = &PAWN_TAKE_MASKS[*can_take as usize];
+    let data = &choose_pawn_take_mask(side)[*pos as usize];
 
-        for i in data.positions.iter() {
-            if must_block & i.as_mask() != 0 && enemies & i.as_mask() != 0 {
-                gen_pawn_moves(moves, pos, *i, all_square_data.get(*i));
-            } else if ep_square.is_some_and(|ep| ep == *i) {
-                moves.push(Move::new(pos, *i, MoveType::EnPassant, None));
-            }
+    for i in data.positions.iter() {
+        if must_block & i.as_mask() != 0 && enemies & i.as_mask() != 0 {
+            gen_pawn_moves(moves, pos, *i, all_square_data.get(*i));
+        } else if ep_square.is_some_and(|ep| ep == *i) {
+            moves.push(Move::new(pos, *i, MoveType::EnPassant, None));
         }
     }
 

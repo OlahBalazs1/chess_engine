@@ -10,7 +10,7 @@ use std::{
 };
 
 use crate::{
-    board::SearchBoard,
+    board::{BoardState, SearchBoard},
     board_repr::KING,
     magic_bitboards::{MAGIC_MOVER, init_magic_mover, print_bits},
     moving::{Move, MoveType, Unmove},
@@ -41,9 +41,8 @@ fn increment_counter() {
     unsafe { COUNTER += 1 }
 }
 
-pub fn perft<const DEPTH: usize>() -> [PerftData; DEPTH] {
+pub fn perft<const DEPTH: usize>(mut board: SearchBoard) -> [PerftData; DEPTH] {
     let mut results = [PerftData::new(); DEPTH];
-    let mut board = SearchBoard::default();
 
     // println!("{}", board.state);
     perft_search(&mut board, &mut results, DEPTH);
@@ -53,7 +52,6 @@ pub fn perft<const DEPTH: usize>() -> [PerftData; DEPTH] {
 
 use MoveType::*;
 use PieceType::*;
-use rayon::result;
 
 fn perft_search<const N: usize>(
     board: &mut SearchBoard,
@@ -88,9 +86,8 @@ fn perft_search<const N: usize>(
     }
 }
 
-pub fn perft_copy<const DEPTH: usize>() -> [PerftData; DEPTH] {
+pub fn perft_copy<const DEPTH: usize>(board: SearchBoard) -> [PerftData; DEPTH] {
     let mut results = [PerftData::new(); DEPTH];
-    let board = SearchBoard::default();
 
     // println!("{}", board.state);
     perft_search_copy(board, &mut results, DEPTH);
@@ -149,18 +146,14 @@ fn pseudo_perft_copy<const N: usize>(
     if depth == 0 {
         return;
     }
-    let (pin_state, check_path) = board.state.legal_data();
-    let no_check_path = CheckPath::None;
-    let no_pin_state = PinState::default();
     let moves = board.find_all_pseudo(board.side());
+    let mut filtered_pseudo = Vec::with_capacity(moves.len());
     for mov in moves.iter().copied() {
         let mut board_copy = board.clone();
+        // friendly fire
         if let Some(taken_piece) = board_copy.get_piece_at(mov.to())
             && taken_piece.side() == board_copy.side()
         {
-            // if is_reintroduced(mov.piece_type()) {
-            //     panic!("Legal committed friendly fire");
-            // }
             continue;
         }
         board_copy.make(&mov);
@@ -175,6 +168,8 @@ fn pseudo_perft_copy<const N: usize>(
             // }
             continue;
         }
+        // legal movegen debug stuff
+        filtered_pseudo.push(mov);
 
         let other_king = board_copy.side_king(board_copy.side());
         // did move put enemy king into check
@@ -196,28 +191,31 @@ fn pseudo_perft_copy<const N: usize>(
         pseudo_perft_copy(board_copy, results, depth - 1);
     }
     let attacked = board.get_attacked(board.side().opposite());
-    let mixed_moves =
-        board.find_pseudo_and_legal(board.side(), attacked, &no_pin_state, &check_path);
-    let mut mixed_filtered = Vec::with_capacity(mixed_moves.len());
-    filter_moves_and(&board, &mixed_moves, |i| mixed_filtered.push(*i));
+    let (pin_state, check_path) = board.state.legal_data();
+    let mixed_moves = board.find_all_moves(pin_state, check_path, attacked);
 
-    filter_moves_and(&board, &moves, |i| {
-        if !mixed_filtered.contains(i) {
-            panic!("{}\nMixed doesn't contain: {}", board.state, i)
+    for i in filtered_pseudo.iter() {
+        if !mixed_moves.contains(i) {
+            panic!("Mixed doesn't contain: {:?}\n{}\n{:?}", i, i, *board);
         }
-    });
+    }
+    for i in mixed_moves {
+        if !filtered_pseudo.contains(&i) {
+            panic!("Pseudo doesn't contain: {:?}\n{}\n{:?}", i, i, *board);
+        }
+    }
 }
 
-pub fn test<const N: usize>() {
+pub fn test_custom<const N: usize>(board: SearchBoard) {
     init_magic_mover();
     init_masks();
     let start = SystemTime::now();
     // let unmake_results = [0; 8];
-    let unmake_results = perft::<N>();
+    let unmake_results = perft::<N>(board.clone());
     println!("Unmake: {} ms", start.elapsed().unwrap().as_millis());
 
     let start = SystemTime::now();
-    let copy_results = perft_copy::<N>();
+    let copy_results = perft_copy::<N>(board.clone());
     println!("copymake: {} ms", start.elapsed().unwrap().as_millis());
 
     for (i, (okay, (unmake, copy))) in zip(
@@ -257,6 +255,9 @@ pub fn test<const N: usize>() {
             )
         }
     }
+}
+pub fn test<const N: usize>() {
+    test_custom::<N>(SearchBoard::default());
 }
 
 pub fn pseudo_test<const N: usize>() {
