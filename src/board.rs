@@ -440,15 +440,21 @@ impl BoardState {
         let mut black_bits = Bitboards { state: [0; 6] };
         let piecewise: BoardRepr = {
             let mut temp = [None; 64];
-            let mut square = 0;
+            let mut x = 0;
+            let mut y = 7;
             for i in piece_data.chars() {
-                println!("{}", i);
+                let square = x + y * 8;
+                println!("y: {}, square: {}", y, square);
                 match i {
                     '1'..='8' => {
-                        square += (i as usize) - (b'0' as usize);
+                        x += (i as usize) - (b'0' as usize);
                         continue;
                     }
-                    '/' => continue,
+                    '/' => {
+                        x = 0;
+                        y -= 1;
+                        continue;
+                    }
                     'p' => {
                         temp[square] = Some(Piece::black(Pawn));
                         black_bits.state[PAWN] |= 1 << square
@@ -499,7 +505,7 @@ impl BoardState {
                     }
                     _ => panic!("Invalid FEN"),
                 }
-                square += 1;
+                x += 1;
             }
             BoardRepr { board: temp }
         };

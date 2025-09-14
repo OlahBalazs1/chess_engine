@@ -156,43 +156,55 @@ pub fn find_king(moves: &mut Vec<Move>, pos: Position, state: &SearchBoard) {
                 )
             }),
     );
+    let side = state.side();
+    let castle_rights = state.side_castle_rights(side);
+    let all_pieces =
+        state.side_bitboards(Side::White).combined() | state.side_bitboards(Side::Black).combined();
 
-    // let is_attacked = |pos| state.is_attacked(pos, side.opposite());
+    let is_attacked = |pos| state.is_attacked_by(pos, side.opposite());
 
-    // if !state.is_attacked(pos, side.opposite()) {
-    //     let short = 0b110 << side.home_y();
-    //     let long = 0x60 << side.home_y();
-    //
-    //     if castle_rights.0
-    //         && is_attacked(pos.with_x(3).unwrap())
-    //         && is_attacked(pos.with_x(2).unwrap())
-    //         && (allies | enemies)
-    //             & (pos.with_x(3).unwrap().as_mask() | pos.with_x(2).unwrap().as_mask())
-    //             == 0
-    //     {
-    //         moves.push(Move::new(
-    //             pos,
-    //             pos.with_x(2).unwrap(),
-    //             MoveType::LongCastle,
-    //             None,
-    //         ));
-    //     }
-    //
-    //     if castle_rights.1
-    //         && is_attacked(pos.with_x(5).unwrap())
-    //         && is_attacked(pos.with_x(6).unwrap())
-    //         && (allies | enemies)
-    //             & (pos.with_x(5).unwrap().as_mask() | pos.with_x(6).unwrap().as_mask())
-    //             == 0
-    //     {
-    //         moves.push(Move::new(
-    //             pos,
-    //             pos.with_x(6).unwrap(),
-    //             MoveType::ShortCastle,
-    //             None,
-    //         ));
-    //     }
-    // }
+    if !state.is_attacked_by(pos, state.side().opposite()) {
+        let short = 0b110 << side.home_y();
+        let long = 0x60 << side.home_y();
+
+        println!("c1 attack: {}", is_attacked(pos.with_x(2).unwrap()));
+        println!("d1 attack: {}", is_attacked(pos.with_x(3).unwrap()));
+        println!("bitboard: {}", all_pieces);
+        println!(
+            "{}",
+            all_pieces & (pos.with_x(3).unwrap().as_mask() | pos.with_x(2).unwrap().as_mask())
+        );
+
+        if castle_rights.0
+            && !is_attacked(pos.with_x(3).unwrap())
+            && !is_attacked(pos.with_x(2).unwrap())
+            && all_pieces & (pos.with_x(3).unwrap().as_mask() | pos.with_x(2).unwrap().as_mask())
+                == 0
+        {
+            println!("long");
+            moves.push(Move::new(
+                pos,
+                pos.with_x(2).unwrap(),
+                MoveType::LongCastle,
+                None,
+            ));
+        }
+
+        if castle_rights.1
+            && !is_attacked(pos.with_x(5).unwrap())
+            && !is_attacked(pos.with_x(6).unwrap())
+            && all_pieces & (pos.with_x(5).unwrap().as_mask() | pos.with_x(6).unwrap().as_mask())
+                == 0
+        {
+            println!("short");
+            moves.push(Move::new(
+                pos,
+                pos.with_x(6).unwrap(),
+                MoveType::ShortCastle,
+                None,
+            ));
+        }
+    }
 }
 
 fn find_rook(moves: &mut Vec<Move>, pos: Position, allies: u64, enemies: u64, state: &SearchBoard) {

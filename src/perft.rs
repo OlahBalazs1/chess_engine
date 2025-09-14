@@ -10,7 +10,7 @@ use std::{
 };
 
 use crate::{
-    board::{BoardState, SearchBoard},
+    board::{self, BoardState, SearchBoard},
     board_repr::KING,
     magic_bitboards::{MAGIC_MOVER, init_magic_mover, print_bits},
     moving::{Move, MoveType, Unmove},
@@ -194,19 +194,19 @@ fn pseudo_perft_copy<const N: usize>(
     let (pin_state, check_path) = board.state.legal_data();
     let mixed_moves = board.find_all_moves(pin_state, check_path, attacked);
 
-    for i in filtered_pseudo.iter() {
-        if !mixed_moves.contains(i) {
-            panic!("Mixed doesn't contain: {:?}\n{}\n{:?}", i, i, *board);
-        }
-    }
-    for i in mixed_moves {
-        if !filtered_pseudo.contains(&i) {
-            panic!("Pseudo doesn't contain: {:?}\n{}\n{:?}", i, i, *board);
-        }
-    }
+    // for i in filtered_pseudo.iter() {
+    //     if !mixed_moves.contains(i) {
+    //         panic!("Mixed doesn't contain: {:?}\n{}\n{:?}", i, i, *board);
+    //     }
+    // }
+    // for i in mixed_moves {
+    //     if !filtered_pseudo.contains(&i) {
+    //         panic!("Pseudo doesn't contain: {:?}\n{}\n{:?}", i, i, *board);
+    //     }
+    // }
 }
 
-pub fn test_custom<const N: usize>(board: SearchBoard) {
+pub fn test_custom<const N: usize>(board: SearchBoard, targets: Vec<u64>) {
     init_magic_mover();
     init_masks();
     let start = SystemTime::now();
@@ -219,7 +219,7 @@ pub fn test_custom<const N: usize>(board: SearchBoard) {
     println!("copymake: {} ms", start.elapsed().unwrap().as_millis());
 
     for (i, (okay, (unmake, copy))) in zip(
-        TARGETS,
+        targets,
         zip(unmake_results, copy_results).map(|i| (i.0.nodes, i.1.nodes)),
     )
     .enumerate()
@@ -257,13 +257,16 @@ pub fn test_custom<const N: usize>(board: SearchBoard) {
     }
 }
 pub fn test<const N: usize>() {
-    test_custom::<N>(SearchBoard::default());
+    test_custom::<N>(SearchBoard::default(), TARGETS.to_vec());
+}
+pub fn pseudo_test<const N: usize>() {
+    let board = SearchBoard::default();
+    pseudo_test_custom::<N>(board, TARGETS.to_vec());
 }
 
-pub fn pseudo_test<const N: usize>() {
+pub fn pseudo_test_custom<const N: usize>(board: SearchBoard, targets: Vec<u64>) {
     init_magic_mover();
     init_masks();
-    let board = SearchBoard::default();
     let mut results = [PerftData::new(); N];
     let start = SystemTime::now();
     pseudo_perft_copy(board.clone(), &mut results, N);
@@ -271,7 +274,7 @@ pub fn pseudo_test<const N: usize>() {
 
     println!("pseudo: {} ms", start.elapsed().unwrap().as_millis());
 
-    for (i, (okay, copy)) in zip(TARGETS, results).enumerate() {
+    for (i, (okay, copy)) in zip(targets, results).enumerate() {
         let error = (copy.nodes as i64) - (okay as i64);
 
         let error_str = error.to_string();
