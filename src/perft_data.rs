@@ -2,13 +2,13 @@ use crate::moving::{Move, MoveType};
 
 #[derive(Clone, Copy)]
 pub struct PerftData {
-    pub nodes: u32,
-    pub captures: u32,
-    pub en_passant: u32,
-    pub castles: u32,
-    pub promotions: u32,
-    pub checks: u32,
-    pub checkmates: u32,
+    pub nodes: u64,
+    pub captures: u64,
+    pub en_passant: u64,
+    pub castles: u64,
+    pub promotions: u64,
+    pub checks: u64,
+    pub checkmates: u64,
 }
 
 impl PerftData {

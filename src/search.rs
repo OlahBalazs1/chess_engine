@@ -29,6 +29,7 @@ pub fn find_pawn(
     let allies = state.side_bitboards(side).combined();
     let enemies = state.side_bitboards(side.opposite()).combined();
     let all_square_data = &state.state.board;
+    let can_ep = pin_state.can_en_passant;
     let pin_state = pin_state.choose_relevant(pos);
     let check_path = match check_paths {
         CheckPath::None => 0,
@@ -51,6 +52,7 @@ pub fn find_pawn(
             enemies,
             all_square_data,
             state.state.en_passant_square,
+            can_ep,
         );
     } else {
         find_pawn_restricted(
@@ -62,6 +64,7 @@ pub fn find_pawn(
             all_square_data,
             must_block,
             state.state.en_passant_square,
+            can_ep,
         );
     }
 }
@@ -74,6 +77,7 @@ fn find_pawn_unrestricted(
     enemies: u64,
     all_square_data: &BoardRepr,
     ep_square: Option<Position>,
+    can_ep: bool,
 ) {
     // takes
     let yo = match side {
@@ -85,7 +89,7 @@ fn find_pawn_unrestricted(
     for i in data.positions.iter() {
         if enemies & i.as_mask() != 0 {
             gen_pawn_moves(moves, pos, *i, all_square_data.get(*i));
-        } else if ep_square.is_some_and(|ep| ep == *i) {
+        } else if ep_square.is_some_and(|ep| ep == *i) && can_ep {
             moves.push(Move::new(pos, *i, MoveType::EnPassant, None));
         }
     }
@@ -118,6 +122,7 @@ fn find_pawn_restricted(
     all_square_data: &BoardRepr,
     must_block: u64,
     ep_square: Option<Position>,
+    can_ep: bool,
 ) {
     // takes
     let yo = match side {
@@ -127,11 +132,13 @@ fn find_pawn_restricted(
 
     let data = &choose_pawn_take_mask(side)[*pos as usize];
 
-    for i in data.positions.iter() {
-        if must_block & i.as_mask() != 0 && enemies & i.as_mask() != 0 {
-            gen_pawn_moves(moves, pos, *i, all_square_data.get(*i));
-        } else if ep_square.is_some_and(|ep| ep == *i) {
-            moves.push(Move::new(pos, *i, MoveType::EnPassant, None));
+    for i in data.positions.iter().copied() {
+        if must_block & i.as_mask() != 0 {
+            if enemies & i.as_mask() != 0 {
+                gen_pawn_moves(moves, pos, i, all_square_data.get(i));
+            } else if ep_square.is_some_and(|ep| ep == i) && can_ep {
+                moves.push(Move::new(pos, i, MoveType::EnPassant, None));
+            }
         }
     }
 
@@ -139,16 +146,21 @@ fn find_pawn_restricted(
 
     if let Some(to) = pos.with_offset(Offset::new(0, yo))
         && all_square_data.get(to).is_none()
-        && must_block & to.as_mask() != 0
     {
-        gen_pawn_moves(moves, pos, to, None);
+        if must_block & to.as_mask() != 0 {
+            gen_pawn_moves(moves, pos, to, None);
+        }
+    } else {
+        return;
     }
     if matches!(pos.y(), 1 | 6)
         && let Some(to) = pos.with_offset(Offset::new(0, yo * 2))
         && all_square_data.get(to).is_none()
         && must_block & to.as_mask() != 0
     {
-        gen_pawn_moves(moves, pos, to, None);
+        if must_block & to.as_mask() != 0 {
+            gen_pawn_moves(moves, pos, to, None);
+        }
     }
 }
 

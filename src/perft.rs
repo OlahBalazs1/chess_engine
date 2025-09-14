@@ -22,6 +22,7 @@ use crate::{
 };
 
 use owo_colors::*;
+use std::thread::scope;
 
 use std::iter::zip;
 
@@ -71,16 +72,16 @@ fn perft_search<const N: usize>(
         // let board_copy = board.clone();
         board.make(&mov);
 
-        let attacked = board.state.get_attacked(board.side().opposite());
-        let (pin_state, check) = board.state.legal_data();
-        if check.is_check() {
-            let moves = board.find_all_moves(pin_state, check, attacked);
-            if moves.len() != 0 {
-                results[N - depth].add_check();
-            } else {
-                results[N - depth].add_checkmate();
-            }
-        }
+        // let attacked = board.state.get_attacked(board.side().opposite());
+        // let (pin_state, check) = board.state.legal_data();
+        // if check.is_check() {
+        //     let moves = board.find_all_moves(pin_state, check, attacked);
+        //     if moves.len() != 0 {
+        //         results[N - depth].add_check();
+        //     } else {
+        //         results[N - depth].add_checkmate();
+        //     }
+        // }
 
         perft_search(board, results, depth - 1);
         board.unmake(unmove);
@@ -120,18 +121,18 @@ fn perft_search_copy<const N: usize>(
         board_clone.make(&mov);
 
         // logging stuff
-        let attacked = board_clone
-            .state
-            .get_attacked(board_clone.side().opposite());
-        let (pin_state, check) = board.state.legal_data();
-        if check.is_check() {
-            let moves = board.find_all_moves(pin_state, check, attacked);
-            if moves.len() != 0 {
-                results[N - depth].add_check();
-            } else {
-                results[N - depth].add_checkmate();
-            }
-        }
+        // let attacked = board_clone
+        //     .state
+        //     .get_attacked(board_clone.side().opposite());
+        // let (pin_state, check) = board.state.legal_data();
+        // if check.is_check() {
+        //     let moves = board.find_all_moves(pin_state, check, attacked);
+        //     if moves.len() != 0 {
+        //         results[N - depth].add_check();
+        //     } else {
+        //         results[N - depth].add_checkmate();
+        //     }
+        // }
         // logging end
         //
 
@@ -173,6 +174,7 @@ fn pseudo_perft_copy<const N: usize>(
         // legal movegen debug stuff
         filtered_pseudo.push(mov);
 
+        // logging stuff
         let other_king = board_copy.side_king(board_copy.side());
         // did move put enemy king into check
         if board_copy.is_attacked(other_king) {
@@ -188,6 +190,7 @@ fn pseudo_perft_copy<const N: usize>(
                 results[N - depth].add_check();
             }
         }
+        // logging stuff end
 
         results[N - depth].add_normal(mov);
         pseudo_perft_copy(board_copy, results, depth - 1);
@@ -211,14 +214,24 @@ fn pseudo_perft_copy<const N: usize>(
 pub fn test_custom<const N: usize>(board: SearchBoard, targets: Vec<u64>) {
     init_magic_mover();
     init_masks();
-    let start = SystemTime::now();
-    // let unmake_results = [0; 8];
-    let unmake_results = perft::<N>(board.clone());
-    println!("Unmake: {} ms", start.elapsed().unwrap().as_millis());
+    let mut unmake_results = None;
+    let mut copy_results = None;
+    scope(|s| {
+        s.spawn(|| {
+            let start = SystemTime::now();
+            // let unmake_results = [0; 8];
+            unmake_results = Some(perft::<N>(board.clone()));
+            println!("Unmake: {} ms", start.elapsed().unwrap().as_millis());
+        });
 
-    let start = SystemTime::now();
-    let copy_results = perft_copy::<N>(board.clone());
-    println!("copymake: {} ms", start.elapsed().unwrap().as_millis());
+        s.spawn(|| {
+            let start = SystemTime::now();
+            copy_results = Some(perft_copy::<N>(board.clone()));
+            println!("copymake: {} ms", start.elapsed().unwrap().as_millis());
+        });
+    });
+    let unmake_results = unmake_results.unwrap();
+    let copy_results = copy_results.unwrap();
 
     for (i, (okay, (unmake, copy))) in zip(targets, zip(unmake_results, copy_results)).enumerate() {
         let error = (copy.nodes as i64) - (okay as i64);
