@@ -45,7 +45,7 @@ const KNIGHT_DIRECTIONS: [Offset; 8] = [
 ];
 
 use crate::{
-    board::SearchBoard,
+    board::{self, SearchBoard},
     board_repr::{BoardRepr, KING, KNIGHT, PAWN},
     moving::{Move, MoveType},
     piece::{self, Piece, PieceType, Side},
@@ -163,25 +163,17 @@ pub fn find_king(moves: &mut Vec<Move>, pos: Position, state: &SearchBoard) {
 
     let is_attacked = |pos| state.is_attacked_by(pos, side.opposite());
 
-    if !state.is_attacked_by(pos, state.side().opposite()) {
-        let short = 0b110 << side.home_y();
-        let long = 0x60 << side.home_y();
-
-        println!("c1 attack: {}", is_attacked(pos.with_x(2).unwrap()));
-        println!("d1 attack: {}", is_attacked(pos.with_x(3).unwrap()));
-        println!("bitboard: {}", all_pieces);
-        println!(
-            "{}",
-            all_pieces & (pos.with_x(3).unwrap().as_mask() | pos.with_x(2).unwrap().as_mask())
-        );
-
+    if !state.is_attacked(pos) {
+        // long
         if castle_rights.0
-            && !is_attacked(pos.with_x(3).unwrap())
             && !is_attacked(pos.with_x(2).unwrap())
-            && all_pieces & (pos.with_x(3).unwrap().as_mask() | pos.with_x(2).unwrap().as_mask())
+            && !is_attacked(pos.with_x(3).unwrap())
+            && all_pieces
+                & (pos.with_x(1).unwrap().as_mask()
+                    | pos.with_x(2).unwrap().as_mask()
+                    | pos.with_x(3).unwrap().as_mask())
                 == 0
         {
-            println!("long");
             moves.push(Move::new(
                 pos,
                 pos.with_x(2).unwrap(),
@@ -190,13 +182,13 @@ pub fn find_king(moves: &mut Vec<Move>, pos: Position, state: &SearchBoard) {
             ));
         }
 
+        // short
         if castle_rights.1
             && !is_attacked(pos.with_x(5).unwrap())
             && !is_attacked(pos.with_x(6).unwrap())
             && all_pieces & (pos.with_x(5).unwrap().as_mask() | pos.with_x(6).unwrap().as_mask())
                 == 0
         {
-            println!("short");
             moves.push(Move::new(
                 pos,
                 pos.with_x(6).unwrap(),
@@ -340,8 +332,9 @@ impl SearchBoard {
 
     pub fn get_attacked_pseudo(&self, attacker: Side) -> u64 {
         let mut accumulator = 0;
-        let all_pieces = self.side_bitboards(Side::White).combined()
-            | self.side_bitboards(Side::Black).combined();
+        let all_pieces = (self.side_bitboards(Side::White).combined()
+            | self.side_bitboards(Side::Black).combined())
+            & !self.side_king(attacker.opposite()).as_mask();
         for i in (0..64).map(|i| Position::from_index(i)) {
             let Some(found_piece) = self.get_piece_at(i) else {
                 continue;

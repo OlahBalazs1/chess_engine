@@ -248,10 +248,14 @@ pub fn find_king(
 
     match check_paths {
         CheckPath::None => {
-            let short = 0b110 << side.home_y();
-            let long = 0x60 << side.home_y();
+            let short = 0x60 << (side.home_y() * 8);
+            let long_occupy = 0xe << (side.home_y() * 8);
+            let long_attack = 0xc << (side.home_y() * 8);
 
-            if castle_rights.0 && long & must_avoid == 0 && long & enemies == 0 {
+            if castle_rights.0
+                && long_occupy & (allies | enemies) == 0
+                && long_attack & attacked_squares == 0
+            {
                 moves.push(Move::new(
                     pos,
                     pos.with_x(2).unwrap(),
@@ -260,7 +264,7 @@ pub fn find_king(
                 ));
             }
 
-            if castle_rights.1 && short & must_avoid == 0 && long & enemies == 0 {
+            if castle_rights.1 && short & must_avoid == 0 && short & enemies == 0 {
                 moves.push(Move::new(
                     pos,
                     pos.with_x(6).unwrap(),

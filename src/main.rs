@@ -24,13 +24,14 @@ use crate::magic_bitboards::{slide_blocker_possible_moves, test_rook_indices};
 const KIWIPETE_TARGETS: [u64; 6] = [48, 2039, 97862, 4085603, 193690690, 8031647685];
 
 fn main() {
-    const DEPTH: usize = 2;
-    // let board = SearchBoard::default();
-    let board = SearchBoard::from_fen(
-        "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1",
-    );
-    println!("{}", board.state);
-    pseudo_test_custom::<DEPTH>(board, KIWIPETE_TARGETS.to_vec());
+    const DEPTH: usize = 5;
+    // let board = SearchBoard::from_fen(
+    //     "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1",
+    // );
+    test::<DEPTH>();
+    // test_custom::<DEPTH>(board, KIWIPETE_TARGETS.to_vec());
+
+    // test::<DEPTH>();
 }
 
 fn run_tests() {

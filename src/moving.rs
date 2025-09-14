@@ -115,7 +115,7 @@ impl Display for Move {
                 return Ok(());
             }
             MoveType::LongCastle => {
-                write!(f, "O-O")?;
+                write!(f, "O-O-O")?;
                 return Ok(());
             }
             MoveType::EnPassant => ("", ""),

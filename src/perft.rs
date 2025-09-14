@@ -68,6 +68,7 @@ fn perft_search<const N: usize>(
     for mov in moves {
         results[N - depth].add_normal(mov);
         let unmove = Unmove::new(&mov, board);
+        // let board_copy = board.clone();
         board.make(&mov);
 
         let attacked = board.state.get_attacked(board.side().opposite());
@@ -83,6 +84,13 @@ fn perft_search<const N: usize>(
 
         perft_search(board, results, depth - 1);
         board.unmake(unmove);
+
+        // if *board != board_copy {
+        //     panic!(
+        //         "unmake problem\nBefore: {:?}\nafter: {:?}\n{:?}\n{}",
+        //         board_copy.state, board.state, mov, mov
+        //     );
+        // }
     }
 }
 
@@ -129,12 +137,6 @@ fn perft_search_copy<const N: usize>(
 
         perft_search_copy(board_clone, results, depth - 1);
         results[N - depth].add_normal(mov);
-    }
-}
-fn is_reintroduced(typ: PieceType) -> bool {
-    match typ {
-        Rook => true,
-        _ => false,
     }
 }
 
@@ -190,20 +192,20 @@ fn pseudo_perft_copy<const N: usize>(
         results[N - depth].add_normal(mov);
         pseudo_perft_copy(board_copy, results, depth - 1);
     }
-    let attacked = board.get_attacked(board.side().opposite());
+    let attacked = board.get_attacked_pseudo(board.side().opposite());
     let (pin_state, check_path) = board.state.legal_data();
     let mixed_moves = board.find_all_moves(pin_state, check_path, attacked);
 
-    // for i in filtered_pseudo.iter() {
-    //     if !mixed_moves.contains(i) {
-    //         panic!("Mixed doesn't contain: {:?}\n{}\n{:?}", i, i, *board);
-    //     }
-    // }
-    // for i in mixed_moves {
-    //     if !filtered_pseudo.contains(&i) {
-    //         panic!("Pseudo doesn't contain: {:?}\n{}\n{:?}", i, i, *board);
-    //     }
-    // }
+    for i in filtered_pseudo.iter() {
+        if !mixed_moves.contains(i) {
+            panic!("Mixed doesn't contain: {:?}\n{}\n{:?}", i, i, *board);
+        }
+    }
+    for i in mixed_moves {
+        if !filtered_pseudo.contains(&i) {
+            panic!("Pseudo doesn't contain: {:?}\n{}\n{:?}", i, i, *board);
+        }
+    }
 }
 
 pub fn test_custom<const N: usize>(board: SearchBoard, targets: Vec<u64>) {
@@ -218,14 +220,9 @@ pub fn test_custom<const N: usize>(board: SearchBoard, targets: Vec<u64>) {
     let copy_results = perft_copy::<N>(board.clone());
     println!("copymake: {} ms", start.elapsed().unwrap().as_millis());
 
-    for (i, (okay, (unmake, copy))) in zip(
-        targets,
-        zip(unmake_results, copy_results).map(|i| (i.0.nodes, i.1.nodes)),
-    )
-    .enumerate()
-    {
-        let error = (copy as i64) - (okay as i64);
-        let copy_unmake_mismatch = (unmake as i64) - (copy as i64);
+    for (i, (okay, (unmake, copy))) in zip(targets, zip(unmake_results, copy_results)).enumerate() {
+        let error = (copy.nodes as i64) - (okay as i64);
+        let copy_unmake_mismatch = (unmake.nodes as i64) - (copy.nodes as i64);
 
         let error_str = error.to_string();
 
@@ -234,7 +231,7 @@ pub fn test_custom<const N: usize>(board: SearchBoard, targets: Vec<u64>) {
                 "{}. (okay: {}) {} {}",
                 i + 1,
                 okay,
-                copy,
+                copy.nodes,
                 match &error_str as &str {
                     "0" => Style::new().green().style("0"),
                     e => Style::new().red().style(e),
@@ -245,8 +242,8 @@ pub fn test_custom<const N: usize>(board: SearchBoard, targets: Vec<u64>) {
                 "{}. (okay: {}) un: {} cpy: {} {} {}",
                 i + 1,
                 okay,
-                unmake,
-                copy,
+                unmake.nodes,
+                copy.nodes,
                 match &error_str as &str {
                     "0" => Style::new().green().style("0"),
                     e => Style::new().red().style(e),
@@ -254,6 +251,15 @@ pub fn test_custom<const N: usize>(board: SearchBoard, targets: Vec<u64>) {
                 copy_unmake_mismatch.red()
             )
         }
+        println!(
+            "cap: {}\tep: {}\tcastle: {}\tpromo: {}\tcheck: {}\tmate: {}",
+            copy.captures,
+            copy.en_passant,
+            copy.castles,
+            copy.promotions,
+            copy.checks,
+            copy.checkmates
+        );
     }
 }
 pub fn test<const N: usize>() {

@@ -32,12 +32,6 @@ macro_rules! enemies {
     };
 }
 
-macro_rules! side_castle_rights {
-    ($side: ident, $state: ident) => {
-        $state.state.side_castle_rights_mut($side)
-    };
-}
-
 impl SearchBoard {
     pub fn find_all_moves(
         &self,
@@ -82,63 +76,67 @@ impl SearchBoard {
     }
 
     pub fn make<'a>(&mut self, mov: &'a Move) {
-        let side = self.state.side;
+        let ally_side = self.state.side;
 
         let mut increment_halfmove = true;
         let mut updated_ep = None;
 
         let piece = mov.piece_type();
 
-        self.state.zobrist.update(piece.with_side(side), mov.from());
-        self.state.zobrist.update(piece.with_side(side), mov.to());
-
-        *allies!(side, self).get_bitboard_mut(piece) ^= mov.from().as_mask() | mov.to().as_mask();
+        self.state
+            .zobrist
+            .update(piece.with_side(ally_side), mov.from());
+        self.state
+            .zobrist
+            .update(piece.with_side(ally_side), mov.to());
         self.state.board.board[*mov.to() as usize] =
             mem::replace(&mut self.state.board.board[*mov.from() as usize], None);
+
+        *allies!(ally_side, self).get_bitboard_mut(piece) ^=
+            mov.from().as_mask() | mov.to().as_mask();
 
         if let Some(taken) = mov.take {
             *self.get_bitboard_mut(taken) ^= mov.to().as_mask();
             increment_halfmove = false;
 
+            if taken.role() == PieceType::Rook {
+                if mov.to().x() == 0 {
+                    self.side_castle_rights_mut(ally_side.opposite()).0 = false;
+                } else if mov.to().x() == 7 {
+                    self.side_castle_rights_mut(ally_side.opposite()).1 = false;
+                }
+            }
+
             self.state.board.board[*mov.from() as usize] = None;
         }
         match mov.move_type {
-            MoveType::Normal(PieceType::Rook) => {
-                if mov.from().x() == 0 {
-                    side_castle_rights!(side, self).0 = false
-                } else if mov.from().x() == 7 {
-                    side_castle_rights!(side, self).1 = false
-                }
-            }
             MoveType::Normal(PieceType::Pawn) if mov.is_pawn_starter() => {
                 increment_halfmove = false;
-                updated_ep = Some(mov.from().with_y(side.pers_y(2)).unwrap());
+                updated_ep = Some(mov.from().with_y(ally_side.pers_y(2)).unwrap());
             }
             MoveType::Promotion(p) => {
-                self.state.board.board[*mov.to() as usize] = Some(p.with_side(side));
-                allies!(side, self).state[PAWN] ^= mov.to().as_mask();
-                *allies!(side, self).get_bitboard_mut(p) ^= mov.to().as_mask();
+                self.state.board.board[*mov.to() as usize] = Some(p.with_side(ally_side));
+                allies!(ally_side, self).state[PAWN] ^= mov.to().as_mask();
+                *allies!(ally_side, self).get_bitboard_mut(p) ^= mov.to().as_mask();
             }
             MoveType::LongCastle => {
-                self.state.board.board[(5 + side.home_y() * 8) as usize] = mem::replace(
-                    &mut self.state.board.board[(7 + side.home_y() * 8) as usize],
+                self.state.board.board[(3 + ally_side.home_y() * 8) as usize] = mem::replace(
+                    &mut self.state.board.board[(0 + ally_side.home_y() * 8) as usize],
                     None,
                 );
-                allies!(side, self).state[ROOK] ^=
-                    1 << (5 + side.home_y() * 8) | (1 << (7 + side.home_y() * 8));
+                allies!(ally_side, self).state[ROOK] ^= 0x9 << (ally_side.home_y() * 8);
             }
             MoveType::ShortCastle => {
-                self.state.board.board[(2 + side.home_y() * 8) as usize] = mem::replace(
-                    &mut self.state.board.board[(side.home_y() * 8) as usize],
+                self.state.board.board[(5 + ally_side.home_y() * 8) as usize] = mem::replace(
+                    &mut self.state.board.board[(7 + ally_side.home_y() * 8) as usize],
                     None,
                 );
-                allies!(side, self).state[ROOK] ^=
-                    1 << (side.home_y() * 8) | (1 << (2 + side.home_y() * 8));
+                allies!(ally_side, self).state[ROOK] ^= 0xa0 << (ally_side.home_y() * 8);
             }
             MoveType::EnPassant => {
-                let ep_pawn = mov.to().with_y(side.pers_y(4)).unwrap();
+                let ep_pawn = mov.to().with_y(ally_side.pers_y(4)).unwrap();
                 increment_halfmove = false;
-                enemies!(side, self).state[PAWN] ^= ep_pawn.as_mask();
+                enemies!(ally_side, self).state[PAWN] ^= ep_pawn.as_mask();
 
                 // set to taken in unmake
                 self.state.board.board[*ep_pawn as usize] = None;
@@ -158,20 +156,26 @@ impl SearchBoard {
 
         self.state
             .zobrist
-            .update_ep_square(side, self.state.en_passant_square, updated_ep);
+            .update_ep_square(ally_side, self.state.en_passant_square, updated_ep);
         self.state.en_passant_square = updated_ep;
 
         self.state.zobrist.switch_side();
 
         if piece == PieceType::King {
-            *self.side_king_mut(side) = mov.to;
-            if self.state.side_castle_rights(side).0 {
-                side_castle_rights!(side, self).0 = false;
-                self.state.zobrist.update_long_castle(side);
+            *self.side_king_mut(ally_side) = mov.to;
+            if self.state.side_castle_rights(ally_side).0 {
+                self.side_castle_rights_mut(ally_side).0 = false;
+                self.state.zobrist.update_long_castle(ally_side);
             }
-            if self.state.side_castle_rights(side).1 {
-                side_castle_rights!(side, self).1 = false;
-                self.state.zobrist.update_short_castle(side);
+            if self.state.side_castle_rights(ally_side).1 {
+                self.side_castle_rights_mut(ally_side).1 = false;
+                self.state.zobrist.update_short_castle(ally_side);
+            }
+        } else if piece == PieceType::Rook {
+            if mov.from().x() == 0 {
+                self.side_castle_rights_mut(ally_side).0 = false;
+            } else if mov.from().x() == 7 {
+                self.side_castle_rights_mut(ally_side).1 = false;
             }
         }
 
@@ -197,25 +201,23 @@ impl SearchBoard {
         }
         match mov.move_type {
             MoveType::Promotion(p) => {
-                self.state.board.board[*mov.to() as usize] = None;
+                self.state.board.board[*mov.from() as usize] = Some(Pawn.with_side(ally_side));
                 allies!(ally_side, self).state[PAWN] ^= mov.to().as_mask();
                 *allies!(ally_side, self).get_bitboard_mut(p) ^= mov.to().as_mask();
             }
             MoveType::LongCastle => {
+                self.state.board.board[(0 + ally_side.home_y() * 8) as usize] = mem::replace(
+                    &mut self.state.board.board[(3 + ally_side.home_y() * 8) as usize],
+                    None,
+                );
+                allies!(ally_side, self).state[ROOK] ^= 0x9 << (ally_side.home_y() * 8);
+            }
+            MoveType::ShortCastle => {
                 self.state.board.board[(7 + ally_side.home_y() * 8) as usize] = mem::replace(
                     &mut self.state.board.board[(5 + ally_side.home_y() * 8) as usize],
                     None,
                 );
-                allies!(ally_side, self).state[ROOK] ^=
-                    1 << (5 + ally_side.home_y() * 8) | (1 << (7 + ally_side.home_y() * 8));
-            }
-            MoveType::ShortCastle => {
-                self.state.board.board[(ally_side.home_y() * 8) as usize] = mem::replace(
-                    &mut self.state.board.board[(2 + ally_side.home_y() * 8) as usize],
-                    None,
-                );
-                allies!(ally_side, self).state[ROOK] ^=
-                    1 << (ally_side.home_y() * 8) | (1 << (2 + ally_side.home_y() * 8));
+                allies!(ally_side, self).state[ROOK] ^= 0xa0 << (ally_side.home_y() * 8);
             }
             MoveType::EnPassant => {
                 // the pawn that is taken
@@ -432,7 +434,6 @@ impl BoardState {
 
     pub fn from_fen(fen: &str) -> Self {
         let split = fen.split(" ").collect::<Vec<_>>();
-        println!("{:?} len: {}", split, split.len());
         let [piece_data, active, rights, ep, _, _] = fen.split(" ").collect::<Vec<_>>()[..6] else {
             panic!("Invalid FEN")
         };
@@ -444,7 +445,6 @@ impl BoardState {
             let mut y = 7;
             for i in piece_data.chars() {
                 let square = x + y * 8;
-                println!("y: {}, square: {}", y, square);
                 match i {
                     '1'..='8' => {
                         x += (i as usize) - (b'0' as usize);
