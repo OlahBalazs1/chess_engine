@@ -25,6 +25,13 @@ use owo_colors::*;
 use std::thread::scope;
 
 use std::iter::zip;
+pub const KIWIPETE_TARGETS: [u64; 6] = [48, 2039, 97862, 4085603, 193690690, 8031647685];
+pub const POS3_TARGETS: [u64; 8] = [
+    14, 191, 2812, 43238, 674624, 11030083, 178633661, 3009794393,
+];
+pub const POS4_TARGETS: [u64; 6] = [6, 264, 9467, 422333, 15833292, 706045033];
+pub const POS5_TARGETS: [u64; 5] = [44, 1486, 62379, 2103487, 89941194];
+pub const POS6_TARGETS: [u64; 6] = [46, 2079, 89890, 3894594, 164075551, 6923051137];
 
 pub const TARGETS: [u64; 7] = [
     20,

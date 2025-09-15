@@ -238,7 +238,6 @@ pub fn find_king(
     let side = state.side();
     let allies = state.side_bitboards(side).combined();
     let enemies = state.side_bitboards(side.opposite()).combined();
-    let castle_rights = state.state.side_castle_rights(side);
     let all_square_data = &state.state.board;
     let must_avoid = allies | attacked_squares;
 
@@ -258,34 +257,32 @@ pub fn find_king(
             }),
     );
 
-    match check_paths {
-        CheckPath::None => {
-            let short = 0x60 << (side.home_y() * 8);
-            let long_occupy = 0xe << (side.home_y() * 8);
-            let long_attack = 0xc << (side.home_y() * 8);
+    if let CheckPath::None = check_paths {
+        let castle_rights = state.side_castle_rights(side);
+        let short = 0x60 << (side.home_y() * 8);
+        let long_occupy = 0xe << (side.home_y() * 8);
+        let long_attack = 0xc << (side.home_y() * 8);
 
-            if castle_rights.0
-                && long_occupy & (allies | enemies) == 0
-                && long_attack & attacked_squares == 0
-            {
-                moves.push(Move::new(
-                    pos,
-                    pos.with_x(2).unwrap(),
-                    MoveType::LongCastle,
-                    None,
-                ));
-            }
-
-            if castle_rights.1 && short & must_avoid == 0 && short & enemies == 0 {
-                moves.push(Move::new(
-                    pos,
-                    pos.with_x(6).unwrap(),
-                    MoveType::ShortCastle,
-                    None,
-                ));
-            }
+        if castle_rights.0
+            && long_occupy & (allies | enemies) == 0
+            && long_attack & attacked_squares == 0
+        {
+            moves.push(Move::new(
+                pos,
+                pos.with_x(2).unwrap(),
+                MoveType::LongCastle,
+                None,
+            ));
         }
-        _ => {}
+
+        if castle_rights.1 && short & (allies | enemies | attacked_squares) == 0 {
+            moves.push(Move::new(
+                pos,
+                pos.with_x(6).unwrap(),
+                MoveType::ShortCastle,
+                None,
+            ));
+        }
     }
 }
 

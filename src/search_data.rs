@@ -166,18 +166,12 @@ impl PinState {
         let ally_bitboards = state.side_bitboards(state.side);
         let enemy_bitboards = state.side_bitboards(state.side.opposite());
         let king_mask = king_pos.as_mask();
+        let diagonal_attackers = enemy_bitboards.state[BISHOP] | enemy_bitboards.state[QUEEN];
+        let parallel_attackers = enemy_bitboards.state[ROOK] | enemy_bitboards.state[QUEEN];
 
         let friendlies = ally_bitboards.combined();
         let enemies = enemy_bitboards.combined();
 
-        let ep = state.en_passant_square.map(|i| {
-            i.with_y(match state.side().opposite() {
-                Side::White => 3,
-                Side::Black => 4,
-            })
-            .unwrap()
-        });
-        let mut can_en_passant = ep.is_some();
         let ally_pawns = ally_bitboards[PAWN];
 
         let first_pass = magic_mover
@@ -188,8 +182,7 @@ impl PinState {
                 .bitboard;
 
         let (diagonal_1, diagonal_2) = {
-            let diagonal_attackers = enemy_bitboards.state[BISHOP] | enemy_bitboards.state[QUEEN];
-            let targets = (friendlies & !(first_pass)) | enemy_bitboards.combined();
+            let targets = (friendlies & !(first_pass)) | enemies;
             let cast = magic_mover.get_bishop(king_pos, targets);
             let mut casts_1: u64 = 0;
             let mut casts_2: u64 = 0;
@@ -206,31 +199,11 @@ impl PinState {
                             | i.as_mask();
                     }
                 }
-                // diagonal hit ep pawn
-                else if can_en_passant
-                    && let Some(ep) = ep
-                    && i == ep
-                {
-                    let mut hits_on_ep = magic_mover
-                        .get_bishop(ep, targets & !ep.as_mask())
-                        .possible_takes()
-                        // keep only bishops and queens
-                        .filter(|i| i.as_mask() & diagonal_attackers != 0)
-                        // if ep square is between bishop and king, then ep is impossible
-                        .filter(|i| {
-                            (king_pos.x() < ep.x() && ep.x() < i.x())
-                                || (king_pos.x() > ep.x() && ep.x() > i.x())
-                        });
-                    if let Some(_) = hits_on_ep.next() {
-                        can_en_passant = false;
-                    }
-                }
             }
             // print_bits(casts_2);
             (cast.bitboard & casts_1, cast.bitboard & casts_2)
         };
         let (x_aligned, y_aligned) = {
-            let parallel_attackers = enemy_bitboards.state[ROOK] | enemy_bitboards.state[QUEEN];
             let targets = (friendlies & !(first_pass)) | enemies;
             let cast = magic_mover.get_rook(king_pos, targets);
             let mut x_casts: u64 = 0;
@@ -245,53 +218,87 @@ impl PinState {
                         y_casts |= (magic_mover.get_rook(i, king_mask).bitboard & cast.bitboard)
                             | i.as_mask();
                     }
-                } else if can_en_passant
-                    && let Some(ep) = ep
-                    && i == ep
-                    && i.y() == king_pos.y()
-                {
-                    let left_ep = ep.with_offset(Offset::new(-1, 0));
-                    let mut ep_targets = targets;
-                    let mut decimated_pawn = false;
-
-                    if let Some(left_ep) = left_ep
-                        && ally_pawns & left_ep.as_mask() != 0
-                    {
-                        decimated_pawn = true;
-                        ep_targets &= !left_ep.as_mask();
-                    }
-                    let right_ep = ep.with_offset(Offset::new(1, 0));
-
-                    if let Some(right_ep) = right_ep
-                        && ally_pawns & right_ep.as_mask() != 0
-                    {
-                        if decimated_pawn {
-                            continue;
-                        }
-                        ep_targets &= !right_ep.as_mask();
-                    }
-
-                    // possible optimization: bitboard shenanigans instead of this
-                    let mut hits_on_ep = magic_mover
-                        .get_rook(ep, ep_targets)
-                        .possible_takes()
-                        // keep only rooks and queens
-                        .filter(|i| i.as_mask() & parallel_attackers != 0)
-                        // only keep the horizontal ones
-                        .filter(|i| i.y() == ep.y())
-                        // if ep square is between rook and king, then ep is impossible
-                        // this step could be useless, actually
-                        .filter(|i| {
-                            (king_pos.x() < ep.x() && ep.x() < i.x())
-                                || (king_pos.x() > ep.x() && ep.x() > i.x())
-                        });
-                    if let Some(_) = hits_on_ep.next() {
-                        can_en_passant = false;
-                    }
                 }
             }
             (cast.bitboard & x_casts, cast.bitboard & y_casts)
         };
+        let ep = state.en_passant_square.map(|i| {
+            i.with_y(match state.side().opposite() {
+                Side::White => 3,
+                Side::Black => 4,
+            })
+            .unwrap()
+        });
+        let mut can_en_passant = ep.is_some();
+
+        'ep_check: {
+            if let Some(ep) = ep {
+                // bishop ep pin
+                // see if king can see ep pawn on diagonal
+                let bishop_ep_cast = magic_mover.get_bishop(king_pos, friendlies | enemies);
+                if let Some(_) = bishop_ep_cast.possible_takes().filter(|i| *i == ep).next() {
+                    // if yes, see if ep pawn can see a bishop that is away from the king
+                    let ep_cast = magic_mover.get_bishop(ep, friendlies | enemies);
+                    if let Some(_) = ep_cast
+                        .possible_takes()
+                        .filter(|i| i.as_mask() & diagonal_attackers != 0)
+                        .filter(|i| {
+                            (i.x() < ep.x() && ep.x() < king_pos.x())
+                                || (i.x() > ep.x() && ep.x() > king_pos.x())
+                        })
+                        .next()
+                    {
+                        can_en_passant = false;
+                        break 'ep_check;
+                    }
+                }
+
+                // rook ep pin
+                let left_ep = ep.with_offset(Offset::new(-1, 0));
+                let mut ep_targets = friendlies | enemies;
+                let mut decimated_pawn = false;
+
+                if let Some(left_ep) = left_ep
+                    && ally_pawns & left_ep.as_mask() != 0
+                {
+                    decimated_pawn = true;
+                    ep_targets &= !left_ep.as_mask();
+                }
+                let right_ep = ep.with_offset(Offset::new(1, 0));
+
+                if let Some(right_ep) = right_ep
+                    && ally_pawns & right_ep.as_mask() != 0
+                {
+                    if decimated_pawn {
+                        break 'ep_check;
+                    }
+                    ep_targets &= !right_ep.as_mask();
+                }
+                let rook_ep_cast = magic_mover.get_rook(king_pos, ep_targets);
+                let Some(_) = rook_ep_cast.possible_takes().filter(|i| *i == ep).next() else {
+                    // if king doesn't see the ep pawn, stop checking
+                    break 'ep_check;
+                };
+
+                // possible optimization: bitboard shenanigans instead of this
+                let mut hits_on_ep = magic_mover
+                    .get_rook(ep, ep_targets)
+                    .possible_takes()
+                    // keep only rooks and queens
+                    .filter(|i| i.as_mask() & parallel_attackers != 0)
+                    // only keep the horizontal ones
+                    .filter(|i| i.y() == ep.y());
+                // if ep square is between rook and king, then ep is impossible
+                // this step could be useless, actually
+                // .filter(|i| {
+                //     (king_pos.x() < ep.x() && ep.x() < i.x())
+                //         || (king_pos.x() > ep.x() && ep.x() > i.x())
+                // });
+                if let Some(_) = hits_on_ep.next() {
+                    can_en_passant = false;
+                }
+            }
+        }
 
         PinState {
             diagonal_1,
