@@ -41,23 +41,18 @@ impl SearchBoard {
     ) -> Vec<Move> {
         use crate::search::*;
         let mut moves = Vec::with_capacity(219);
+        let allies = self.side_bitboards(self.side()).combined();
 
-        let pieces = self
-            .state
-            .board
-            .board
-            .iter()
-            .enumerate()
-            .map(|(pos, piece)| {
-                (
-                    Position::from_index(pos as u8),
-                    piece.and_then(|piece| piece.filter_side(self.state.side)),
-                )
-            });
-
-        for (pos, piece) in pieces {
-            if let Some(piece) = piece {
-                match piece.piece_type {
+        for pos in 0u8..64 {
+            let pos = unsafe { mem::transmute::<u8, Position>(pos) };
+            if allies & pos.as_mask() == 0 {
+                continue;
+            }
+            unsafe {
+                match self.board.board[*pos as usize]
+                    .unwrap_unchecked()
+                    .piece_type
+                {
                     Pawn => find_pawn(&mut moves, pos, self, &pin_state, &check_paths),
                     Rook => find_rook(&mut moves, pos, self, &pin_state, &check_paths),
                     Knight => find_knight(&mut moves, pos, self, &pin_state, &check_paths),
@@ -67,11 +62,6 @@ impl SearchBoard {
                 };
             }
         }
-
-        // for pos in squares {
-        //     self.find_moves_at(&mut moves, &mut attacked_squares, pos);
-        // }
-
         moves
     }
 
@@ -100,7 +90,7 @@ impl SearchBoard {
             *self.get_bitboard_mut(taken) ^= mov.to().as_mask();
             increment_halfmove = false;
 
-            self.state.board.board[*mov.from() as usize] = None;
+            // self.state.board.board[*mov.from() as usize] = None;
         }
         match mov.move_type {
             MoveType::Normal(PieceType::Pawn) if mov.is_pawn_starter() => {
@@ -380,36 +370,31 @@ impl BoardState {
     }
     pub fn get_attacked(&self, enemy: Side) -> u64 {
         let mut attacked_squares = 0;
+        let enemies = self.side_bitboards(self.side().opposite()).combined();
 
         let all = (self.white.combined() | self.black.combined())
             & !(self.side_bitboards(enemy.opposite())[KING]);
 
-        let pieces = self
-            .board
-            .board
-            .iter()
-            .enumerate()
-            .map(|(pos, piece)| {
-                (
-                    Position::from_index(pos as u8),
-                    piece.and_then(|p| p.filter_side(enemy)),
-                )
-            })
-            .filter(|(_, piece)| piece.is_some())
-            .map(|(pos, piece)| (pos, piece.unwrap()));
-
-        for (pos, piece) in pieces {
-            attacked_squares |= match piece.piece_type {
-                Pawn => choose_pawn_take_mask(enemy)[*pos as usize].sum,
-                Rook => MAGIC_MOVER.get_rook(pos, all).bitboard,
-                Knight => KNIGHT_MASKS[*pos as usize].sum,
-                Bishop => MAGIC_MOVER.get_bishop(pos, all).bitboard,
-                Queen => {
-                    MAGIC_MOVER.get_rook(pos, all).bitboard
-                        | MAGIC_MOVER.get_bishop(pos, all).bitboard
-                }
-                King => KING_MASKS[*pos as usize].sum,
-            };
+        for pos in (0..64).map(Position::from_index) {
+            if enemies & pos.as_mask() == 0 {
+                continue;
+            }
+            unsafe {
+                attacked_squares |= match self.board.board[*pos as usize]
+                    .unwrap_unchecked()
+                    .piece_type
+                {
+                    Pawn => choose_pawn_take_mask(enemy)[*pos as usize].sum,
+                    Rook => MAGIC_MOVER.get_rook(pos, all).bitboard,
+                    Knight => KNIGHT_MASKS[*pos as usize].sum,
+                    Bishop => MAGIC_MOVER.get_bishop(pos, all).bitboard,
+                    Queen => {
+                        MAGIC_MOVER.get_rook(pos, all).bitboard
+                            | MAGIC_MOVER.get_bishop(pos, all).bitboard
+                    }
+                    King => KING_MASKS[*pos as usize].sum,
+                };
+            }
         }
 
         attacked_squares

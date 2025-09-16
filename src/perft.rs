@@ -217,6 +217,43 @@ fn pseudo_perft_copy<const N: usize>(
         }
     }
 }
+pub fn test_unmake<const N: usize>() {
+    test_unmake_custom::<N>(SearchBoard::default(), TARGETS.to_vec());
+}
+
+pub fn test_unmake_custom<const N: usize>(board: SearchBoard, targets: Vec<u64>) {
+    init_magic_mover();
+    init_masks();
+    let start = SystemTime::now();
+    // let unmake_results = [0; 8];
+    let unmake_results = perft::<N>(board.clone());
+    println!("Unmake: {} ms", start.elapsed().unwrap().as_millis());
+
+    for (i, (okay, unmake)) in zip(targets, unmake_results).enumerate() {
+        let error = (unmake.nodes as i64) - (okay as i64);
+
+        let error_str = error.to_string();
+        println!(
+            "{}. (okay: {}) {} {}",
+            i + 1,
+            okay,
+            unmake.nodes,
+            match &error_str as &str {
+                "0" => Style::new().green().style("0"),
+                e => Style::new().red().style(e),
+            },
+        );
+        println!(
+            "cap: {}\tep: {}\tcastle: {}\tpromo: {}\tcheck: {}\tmate: {}",
+            unmake.captures,
+            unmake.en_passant,
+            unmake.castles,
+            unmake.promotions,
+            unmake.checks,
+            unmake.checkmates
+        );
+    }
+}
 
 pub fn test_custom<const N: usize>(board: SearchBoard, targets: Vec<u64>) {
     init_magic_mover();
