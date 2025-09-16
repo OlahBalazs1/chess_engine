@@ -11,7 +11,7 @@ use crate::moving::{Castle, Move, MoveType, Unmove};
 use crate::piece::{self, Piece, PieceType, Side};
 use crate::position::{self, Position};
 use crate::search_data::{CheckPath, PinState};
-use crate::search_masks::{KING_MASKS, KNIGHT_MASKS, choose_pawn_take_mask};
+use crate::search_masks::{KING_MASKS, KNIGHT_MASKS, choose_home_rook, choose_pawn_take_mask};
 use crate::zobrist::*;
 
 use PieceType::*;
@@ -77,6 +77,7 @@ impl SearchBoard {
 
     pub fn make<'a>(&mut self, mov: &'a Move) {
         let ally_side = self.state.side;
+        let enemy_side = ally_side.opposite();
 
         let mut increment_halfmove = true;
         let mut updated_ep = None;
@@ -98,14 +99,6 @@ impl SearchBoard {
         if let Some(taken) = mov.take {
             *self.get_bitboard_mut(taken) ^= mov.to().as_mask();
             increment_halfmove = false;
-
-            if taken.role() == PieceType::Rook {
-                if mov.to().x() == 0 {
-                    self.side_castle_rights_mut(ally_side.opposite()).0 = false;
-                } else if mov.to().x() == 7 {
-                    self.side_castle_rights_mut(ally_side.opposite()).1 = false;
-                }
-            }
 
             self.state.board.board[*mov.from() as usize] = None;
         }
@@ -161,6 +154,31 @@ impl SearchBoard {
 
         self.state.zobrist.switch_side();
 
+        let ally_home_rook = choose_home_rook(ally_side);
+        if mov.from() == ally_home_rook[0] {
+            if self.state.side_castle_rights(ally_side).0 {
+                self.state.zobrist.update_long_castle(ally_side);
+            }
+            self.side_castle_rights_mut(ally_side).0 = false;
+        } else if mov.from() == ally_home_rook[1] {
+            if self.state.side_castle_rights(ally_side).1 {
+                self.state.zobrist.update_short_castle(ally_side);
+            }
+            self.side_castle_rights_mut(ally_side).1 = false;
+        }
+        let enemy_home_rook = choose_home_rook(enemy_side);
+        if mov.to() == enemy_home_rook[0] {
+            if self.state.side_castle_rights(enemy_side).0 {
+                self.state.zobrist.update_long_castle(enemy_side);
+            }
+            self.side_castle_rights_mut(enemy_side).0 = false;
+        } else if mov.to() == enemy_home_rook[1] {
+            if self.state.side_castle_rights(enemy_side).1 {
+                self.state.zobrist.update_short_castle(enemy_side);
+            }
+            self.side_castle_rights_mut(enemy_side).1 = false;
+        }
+
         if piece == PieceType::King {
             *self.side_king_mut(ally_side) = mov.to;
             if self.state.side_castle_rights(ally_side).0 {
@@ -170,12 +188,6 @@ impl SearchBoard {
             if self.state.side_castle_rights(ally_side).1 {
                 self.side_castle_rights_mut(ally_side).1 = false;
                 self.state.zobrist.update_short_castle(ally_side);
-            }
-        } else if piece == PieceType::Rook {
-            if mov.from().x() == 0 {
-                self.side_castle_rights_mut(ally_side).0 = false;
-            } else if mov.from().x() == 7 {
-                self.side_castle_rights_mut(ally_side).1 = false;
             }
         }
 

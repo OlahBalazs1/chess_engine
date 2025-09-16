@@ -109,3 +109,13 @@ pub fn choose_pawn_take_mask(side: Side) -> &'static [SingularData; 64] {
         Side::Black => &*BLACK_PAWN_TAKE_MASKS,
     }
 }
+
+pub const WHITE_HOME_ROOKS: [Position; 2] = [Position::new(0, 0), Position::new(7, 0)];
+pub const BLACK_HOME_ROOKS: [Position; 2] = [Position::new(0, 7), Position::new(7, 7)];
+
+pub fn choose_home_rook(side: Side) -> [Position; 2] {
+    match side {
+        Side::White => WHITE_HOME_ROOKS,
+        Side::Black => BLACK_HOME_ROOKS,
+    }
+}
