@@ -33,35 +33,48 @@ macro_rules! enemies {
 }
 
 impl SearchBoard {
-    pub fn find_all_moves(
-        &self,
-        pin_state: PinState,
-        check_paths: CheckPath,
-        attacked_squares: u64,
-    ) -> Vec<Move> {
+    pub fn find_all_moves(&self, pin_state: PinState, check_paths: CheckPath) -> Vec<Move> {
         use crate::search::*;
         let mut moves = Vec::with_capacity(219);
         let allies = self.side_bitboards(self.side()).combined();
+        let enemy = self.side().opposite();
+        let mut attacked_squares = 0;
+        let all = (self.white.combined() | self.black.combined())
+            & !(self.side_bitboards(enemy.opposite())[KING]);
 
-        for pos in 0u8..64 {
-            let pos = unsafe { mem::transmute::<u8, Position>(pos) };
-            if allies & pos.as_mask() == 0 {
-                continue;
-            }
-            unsafe {
-                match self.board.board[*pos as usize]
-                    .unwrap_unchecked()
-                    .piece_type
-                {
-                    Pawn => find_pawn(&mut moves, pos, self, &pin_state, &check_paths),
-                    Rook => find_rook(&mut moves, pos, self, &pin_state, &check_paths),
-                    Knight => find_knight(&mut moves, pos, self, &pin_state, &check_paths),
-                    Bishop => find_bishop(&mut moves, pos, self, &pin_state, &check_paths),
-                    Queen => find_queen(&mut moves, pos, self, &pin_state, &check_paths),
-                    King => find_king(&mut moves, pos, self, &check_paths, attacked_squares),
-                };
+        for pos in (0..64).map(Position::from_index) {
+            if let Some(piece) = self.board.board[*pos as usize] {
+                if self.side() == piece.side() {
+                    match piece.piece_type {
+                        Pawn => find_pawn(&mut moves, pos, self, &pin_state, &check_paths),
+                        Rook => find_rook(&mut moves, pos, self, &pin_state, &check_paths),
+                        Knight => find_knight(&mut moves, pos, self, &pin_state, &check_paths),
+                        Bishop => find_bishop(&mut moves, pos, self, &pin_state, &check_paths),
+                        Queen => find_queen(&mut moves, pos, self, &pin_state, &check_paths),
+                        _ => {}
+                    };
+                } else {
+                    attacked_squares |= match piece.piece_type {
+                        Pawn => choose_pawn_take_mask(enemy)[*pos as usize].sum,
+                        Rook => MAGIC_MOVER.get_rook(pos, all).bitboard,
+                        Knight => KNIGHT_MASKS[*pos as usize].sum,
+                        Bishop => MAGIC_MOVER.get_bishop(pos, all).bitboard,
+                        Queen => {
+                            MAGIC_MOVER.get_rook(pos, all).bitboard
+                                | MAGIC_MOVER.get_bishop(pos, all).bitboard
+                        }
+                        King => KING_MASKS[*pos as usize].sum,
+                    };
+                }
             }
         }
+        find_king(
+            &mut moves,
+            self.find_king(self.side()),
+            self,
+            &check_paths,
+            attacked_squares,
+        );
         moves
     }
 

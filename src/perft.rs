@@ -70,8 +70,8 @@ fn perft_search<const N: usize>(
         return;
     }
     let (pin_state, check_path) = board.legal_data();
-    let attacked = board.state.get_attacked(board.side().opposite());
-    let moves = board.find_all_moves(pin_state, check_path, attacked);
+    // let attacked = board.state.get_attacked(board.side().opposite());
+    let moves = board.find_all_moves(pin_state, check_path);
 
     for mov in moves {
         results[N - depth].add_normal(mov);
@@ -120,9 +120,9 @@ fn perft_search_copy<const N: usize>(
         return;
     }
     let (pin, check) = board.state.legal_data();
-    let attacked = board.state.get_attacked(board.side().opposite());
+    // let attacked = board.state.get_attacked(board.side().opposite());
 
-    let moves = board.find_all_moves(pin, check, attacked);
+    let moves = board.find_all_moves(pin, check);
     for mov in moves {
         let mut board_clone = board.clone();
         board_clone.make(&mov);
@@ -202,9 +202,9 @@ fn pseudo_perft_copy<const N: usize>(
         results[N - depth].add_normal(mov);
         pseudo_perft_copy(board_copy, results, depth - 1);
     }
-    let attacked = board.get_attacked_pseudo(board.side().opposite());
+    // let attacked = board.get_attacked_pseudo(board.side().opposite());
     let (pin_state, check_path) = board.state.legal_data();
-    let mixed_moves = board.find_all_moves(pin_state, check_path, attacked);
+    let mixed_moves = board.find_all_moves(pin_state, check_path);
 
     for i in filtered_pseudo.iter() {
         if !mixed_moves.contains(i) {
