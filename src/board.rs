@@ -592,6 +592,10 @@ impl BoardState {
             Side::Black => &self.black,
         }
     }
+
+    pub fn is_in_check(&self) -> bool {
+        self.can_be_taken(self.find_king(self.side()), self.side().opposite())
+    }
 }
 
 impl Hash for BoardState {
