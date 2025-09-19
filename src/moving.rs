@@ -1,4 +1,4 @@
-use crate::board::SearchBoard;
+use crate::board::{BoardState, SearchBoard};
 use crate::piece::{Piece, PieceType};
 use crate::position::Position;
 use crate::search_data::{CheckPath, PinState};
@@ -89,6 +89,60 @@ impl Move {
 
     pub fn en_passant_square(&self) -> Position {
         Position::from_index((*self.from() + *self.to()) / 2)
+    }
+
+    // format "from to"
+    pub fn from_string(board: &BoardState, s: &str) -> Option<Self> {
+        let mut data = s.split(" ");
+        let start;
+        if let Some(from) = data.next() {
+            start = Position::from_str(from);
+        } else {
+            return None;
+        }
+
+        let end;
+        if let Some(to) = data.next() {
+            end = Position::from_str(to);
+        } else {
+            return None;
+        }
+        let Some(start) = start else {
+            return None;
+        };
+        let Some(end) = end else {
+            return None;
+        };
+
+        let Some(piece) = board.get_piece_at(start) else {
+            return None;
+        };
+        let piece = piece.role();
+        let take = board.get_piece_at(end);
+        let move_type = if piece == PieceType::King && start.abs_diff(*end) == 2 {
+            if end.x() == 2 {
+                MoveType::LongCastle
+            } else {
+                MoveType::ShortCastle
+            }
+        } else if piece == PieceType::Pawn && take.is_none() && end.x() != start.x() {
+            if let Some(ep_square) = board.en_passant_square {
+                MoveType::EnPassant
+            } else {
+                return None;
+            }
+        } else if piece == PieceType::Pawn && matches!(end.y(), 0 | 7) {
+            // TODO: Actually implement promotion
+            MoveType::Promotion(PieceType::Queen)
+        } else {
+            MoveType::Normal(piece)
+        };
+        Some(Self {
+            move_type,
+            from: start,
+            to: end,
+            take,
+        })
     }
 }
 impl Display for Move {

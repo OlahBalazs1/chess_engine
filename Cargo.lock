@@ -25,6 +25,7 @@ name = "chess_engine"
 version = "0.1.0"
 dependencies = [
  "array-init",
+ "nohash-hasher",
  "owo-colors",
  "rand",
  "rayon",
@@ -78,6 +79,12 @@ name = "libc"
 version = "0.2.171"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c19937216e9d3aa9956d9bb8dfc0b0c8beb6058fc4f7a4dc4d850edf86a237d6"
+
+[[package]]
+name = "nohash-hasher"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2bf50223579dc7cdcfb3bfcacf7069ff68243f8c363f62ffa99cf000a6b9c451"
 
 [[package]]
 name = "owo-colors"

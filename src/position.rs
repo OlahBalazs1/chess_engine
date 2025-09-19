@@ -40,6 +40,24 @@ impl Deref for Position {
 }
 
 impl Position {
+    pub fn from_str(s: &str) -> Option<Self> {
+        if s.len() != 2 {
+            return None;
+        }
+
+        let mut output = 0;
+        let mut bytes = s.bytes();
+        match bytes.next().unwrap() {
+            i @ b'a'..=b'h' => output += i - b'a',
+            _ => return None,
+        }
+        match bytes.next().unwrap() {
+            i @ b'1'..=b'8' => output += (i - b'1') * 8,
+            _ => return None,
+        }
+
+        return Some(Position::from_index(output));
+    }
     #[inline]
     pub const fn new(x: u8, y: u8) -> Self {
         assert!(x < 8 && y < 8, "Value out of range");

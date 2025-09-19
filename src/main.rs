@@ -15,8 +15,15 @@ mod search_masks;
 mod util;
 mod zobrist;
 
-use crate::engine::minimax;
+use std::collections::HashMap;
+use std::io::{Write, stdin, stdout};
+
+use nohash_hasher::BuildNoHashHasher;
+
+use crate::engine::play::{autoplay, play};
+use crate::engine::{evaluate::evaluate, minimax};
 use crate::moving::Move;
+use crate::piece::Side;
 use crate::position::Position;
 use crate::search_masks::{BLACK_PAWN_TAKE_MASKS, WHITE_PAWN_TAKE_MASKS};
 pub use crate::util::pseudo_moving;
@@ -25,17 +32,10 @@ use crate::{board::SearchBoard, perft::*};
 use crate::magic_bitboards::{slide_blocker_possible_moves, test_rook_indices};
 
 fn main() {
-    const DEPTH: usize = 5;
-    let board = SearchBoard::from_fen(
-        "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1",
-    );
-    // test_unmake::<DEPTH>();
-    // test_custom::<DEPTH>(board, KIWIPETE_TARGETS.to_vec());
-    //
-    //
-    println!("{}", minimax(board, 4))
-}
+    let depth = 4;
+    let board = SearchBoard::default();
+    let player_side = Side::White;
 
-fn run_tests() {
-    test_rook_indices();
+    // println!("{}", evaluate(&board, Side::White));
+    autoplay(depth, board);
 }
