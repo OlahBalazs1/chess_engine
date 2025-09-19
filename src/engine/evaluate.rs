@@ -23,7 +23,7 @@ pub fn eval_score(board: &SearchBoard) -> i64 {
     let (pin_state, check_paths) = board.legal_data();
     let moves = board.find_all_moves(pin_state, check_paths.clone());
 
-    eval += (moves.len()) as i64;
+    eval -= (moves.len()) as i64;
 
     if check_paths.is_check() {
         eval += 10

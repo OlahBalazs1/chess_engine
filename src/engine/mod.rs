@@ -14,6 +14,48 @@ use crate::{
 };
 type ZobristHash = u64;
 type RepetitionHashmap = HashMap<ZobristHash, u8, BuildNoHashHasher<u64>>;
+pub fn negamax(board: SearchBoard, depth: i32, board_repetition: &RepetitionHashmap) -> Move {
+    if depth == 0 {
+        panic!("Don't call minimax() with a depth of 0")
+    }
+    let (pin_state, check_paths) = board.legal_data();
+    let moves = board.find_all_moves(pin_state, check_paths);
+    let evals = moves
+        .par_iter()
+        .map(|mov| {
+            let mut board_copy = board.clone();
+            let mut repetition_copy = board_repetition.clone();
+            board_copy.make(&mov);
+            add_board_to_repetition(&mut repetition_copy, &board_copy);
+            -negamax_search(&mut board_copy, depth - 1, &repetition_copy)
+        })
+        .collect::<Vec<_>>();
+
+    moves[max_eval_index(&evals).unwrap()]
+}
+fn negamax_search(
+    board: &mut SearchBoard,
+    depth: i32,
+    board_repetition: &RepetitionHashmap,
+) -> i64 {
+    if depth == 0 {
+        return evaluate(&board);
+    }
+    let (pin_state, check_paths) = board.legal_data();
+    let moves = board.find_all_moves(pin_state, check_paths);
+    let mut max = i64::MIN;
+    for mov in moves.iter() {
+        let mut repetition_copy = board_repetition.clone();
+        let unmake = Unmove::new(mov, &board);
+        board.make(mov);
+
+        add_board_to_repetition(&mut repetition_copy, board);
+        let score = -negamax_search(board, depth - 1, &repetition_copy);
+        max = cmp::max(score, max);
+        board.unmake(unmake);
+    }
+    max
+}
 
 pub fn minimax(
     board: SearchBoard,
@@ -42,7 +84,6 @@ pub fn minimax(
         })
         .collect::<Vec<_>>();
 
-    let max_eval = max_eval_index(&evals).unwrap();
     moves[max_eval_index(&evals).unwrap()]
 }
 
@@ -57,12 +98,13 @@ fn max_eval_index(evals: &[i64]) -> Option<usize> {
     let mut max = evals[0];
     let mut max_index = 0;
     for (index, i) in evals[1..].iter().enumerate() {
+        println!("{} {} {}", max, index, i);
         if *i > max {
             max = *i;
             max_index = index;
         }
     }
-    return Some(max_index);
+    return Some(max_index + 1);
 }
 
 fn maxi(board: &mut SearchBoard, depth: i32, board_repetition: &RepetitionHashmap) -> i64 {
