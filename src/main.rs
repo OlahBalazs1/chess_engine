@@ -32,11 +32,11 @@ use crate::{board::SearchBoard, perft::*};
 use crate::magic_bitboards::{slide_blocker_possible_moves, test_rook_indices};
 
 fn main() {
-    let depth = 4;
+    let depth = 5;
     let board = SearchBoard::default();
     let player_side = Side::White;
 
-    let minimax_moves = autoplay(depth, board);
+    autoplay(depth, board);
     // if minimax_moves == negamax_moves {
     //     println!("Success!")
     // }

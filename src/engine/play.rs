@@ -7,25 +7,28 @@ use nohash_hasher::BuildNoHashHasher;
 
 use crate::{
     board::{self, SearchBoard},
-    engine::{add_board_to_repetition, is_draw_repetition, minimax},
+    engine::{add_board_to_repetition, evaluate::outcome, is_draw_repetition, minimax},
     moving::Move,
     piece::Side,
 };
 
 pub fn play(depth: i32, mut board: SearchBoard, player_side: Side) {
-    let repetition = HashMap::with_hasher(BuildNoHashHasher::new());
+    let mut repetitions = HashMap::with_hasher(BuildNoHashHasher::new());
 
     loop {
         println!("{}", board.state);
         if board.side() == player_side.opposite() {
-            let chosen_move = minimax(board.clone(), depth, &repetition, board.side());
+            let Some(chosen_move) = minimax(board.clone(), depth, &repetitions) else {
+                break;
+            };
             println!("{}", chosen_move);
             board.make(&chosen_move);
             continue;
         }
-        if is_draw_repetition(&board, &repetition) {
+        if is_draw_repetition(&board, &repetitions) {
             break;
         }
+        add_board_to_repetition(&mut repetitions, &board);
 
         let (pin_state, check_paths) = board.legal_data();
         let legal_moves = board.find_all_moves(pin_state, check_paths);
@@ -42,25 +45,35 @@ pub fn play(depth: i32, mut board: SearchBoard, player_side: Side) {
                 break;
             }
         }
-        if is_draw_repetition(&board, &repetition) {
+        let (pin_state, check_paths) = board.legal_data();
+        let legal_moves = board.find_all_moves(pin_state, check_paths.clone());
+        if outcome(&board, &legal_moves, check_paths.is_check(), &repetitions).is_game_over() {
             break;
         }
+        add_board_to_repetition(&mut repetitions, &board);
     }
 }
 
-pub fn autoplay(depth: i32, mut board: SearchBoard) -> Vec<Move> {
+pub fn autoplay(depth: i32, mut board: SearchBoard) {
     let mut repetition = HashMap::with_hasher(BuildNoHashHasher::new());
-    let mut played_moves = Vec::new();
     loop {
         println!("{}", board.state);
-        let chosen_move = minimax(board.clone(), depth, &repetition, board.side());
+        let Some(chosen_move) = minimax(board.clone(), depth, &repetition) else {
+            break;
+        };
         println!("{}", chosen_move);
         board.make(&chosen_move);
-        played_moves.push(chosen_move);
         add_board_to_repetition(&mut repetition, &board);
-        if is_draw_repetition(&board, &repetition) {
+
+        let (pin_state, check_path) = board.legal_data();
+        let is_check = check_path.is_check();
+        let moves = board.find_all_moves(pin_state, check_path);
+
+        let outcome = outcome(&board, &moves, is_check, &repetition);
+        if outcome.is_game_over() {
+            println!("{:?}", outcome);
             break;
         }
     }
-    played_moves
+    println!("{}", board.state);
 }
