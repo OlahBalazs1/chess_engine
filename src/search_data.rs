@@ -147,10 +147,6 @@ impl CheckPath {
                     | i.as_mask()
             })
         }
-        // match path {
-        //     CheckPath::Blockable(i) => print_bits(i),
-        //     _ => {}
-        // }
         path
     }
 }
@@ -162,6 +158,8 @@ impl PinState {
     pub fn combined(&self) -> u64 {
         self.diagonal_1 | self.diagonal_2 | self.x_aligned | self.y_aligned
     }
+    // TODO: Make a set of magic bitboards only for this
+    // basically, just ignore the first set of blockers in each direction
     fn find_with(state: &BoardState, king_pos: Position, magic_mover: &MagicMover) -> Self {
         let ally_bitboards = state.side_bitboards(state.side);
         let enemy_bitboards = state.side_bitboards(state.side.opposite());
