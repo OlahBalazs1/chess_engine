@@ -7,7 +7,7 @@ use nohash_hasher::BuildNoHashHasher;
 
 use crate::{
     board::{self, SearchBoard},
-    engine::{add_board_to_repetition, is_draw_repetition, minimax, negamax},
+    engine::{add_board_to_repetition, is_draw_repetition, minimax},
     moving::Move,
     piece::Side,
 };
@@ -54,22 +54,6 @@ pub fn autoplay(depth: i32, mut board: SearchBoard) -> Vec<Move> {
     loop {
         println!("{}", board.state);
         let chosen_move = minimax(board.clone(), depth, &repetition, board.side());
-        println!("{}", chosen_move);
-        board.make(&chosen_move);
-        played_moves.push(chosen_move);
-        add_board_to_repetition(&mut repetition, &board);
-        if is_draw_repetition(&board, &repetition) {
-            break;
-        }
-    }
-    played_moves
-}
-pub fn autoplay_nega(depth: i32, mut board: SearchBoard) -> Vec<Move> {
-    let mut repetition = HashMap::with_hasher(BuildNoHashHasher::new());
-    let mut played_moves = Vec::new();
-    loop {
-        println!("{}", board.state);
-        let chosen_move = negamax(board.clone(), depth, &repetition);
         println!("{}", chosen_move);
         board.make(&chosen_move);
         played_moves.push(chosen_move);

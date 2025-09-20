@@ -20,7 +20,7 @@ use std::io::{Write, stdin, stdout};
 
 use nohash_hasher::BuildNoHashHasher;
 
-use crate::engine::play::{autoplay, autoplay_nega, play};
+use crate::engine::play::{autoplay, play};
 use crate::engine::{evaluate::evaluate, minimax};
 use crate::moving::Move;
 use crate::piece::Side;
@@ -37,9 +37,6 @@ fn main() {
     let player_side = Side::White;
 
     let minimax_moves = autoplay(depth, board);
-    println!("Negamax");
-    // let board = SearchBoard::default();
-    // let negamax_moves = autoplay_nega(depth, board);
     // if minimax_moves == negamax_moves {
     //     println!("Success!")
     // }

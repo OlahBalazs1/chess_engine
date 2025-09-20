@@ -11,51 +11,10 @@ use crate::{
     moving::{Move, Unmove},
     piece::{PieceType, Side},
     search_data::CheckPath,
+    util::{max_index, min_index},
 };
 type ZobristHash = u64;
 type RepetitionHashmap = HashMap<ZobristHash, u8, BuildNoHashHasher<u64>>;
-pub fn negamax(board: SearchBoard, depth: i32, board_repetition: &RepetitionHashmap) -> Move {
-    if depth == 0 {
-        panic!("Don't call minimax() with a depth of 0")
-    }
-    let (pin_state, check_paths) = board.legal_data();
-    let moves = board.find_all_moves(pin_state, check_paths);
-    let evals = moves
-        .par_iter()
-        .map(|mov| {
-            let mut board_copy = board.clone();
-            let mut repetition_copy = board_repetition.clone();
-            board_copy.make(&mov);
-            add_board_to_repetition(&mut repetition_copy, &board_copy);
-            -negamax_search(&mut board_copy, depth - 1, &repetition_copy)
-        })
-        .collect::<Vec<_>>();
-
-    moves[max_eval_index(&evals).unwrap()]
-}
-fn negamax_search(
-    board: &mut SearchBoard,
-    depth: i32,
-    board_repetition: &RepetitionHashmap,
-) -> i64 {
-    if depth == 0 {
-        return evaluate(&board);
-    }
-    let (pin_state, check_paths) = board.legal_data();
-    let moves = board.find_all_moves(pin_state, check_paths);
-    let mut max = i64::MIN;
-    for mov in moves.iter() {
-        let mut repetition_copy = board_repetition.clone();
-        let unmake = Unmove::new(mov, &board);
-        board.make(mov);
-
-        add_board_to_repetition(&mut repetition_copy, board);
-        let score = -negamax_search(board, depth - 1, &repetition_copy);
-        max = cmp::max(score, max);
-        board.unmake(unmake);
-    }
-    max
-}
 
 pub fn minimax(
     board: SearchBoard,
@@ -76,83 +35,46 @@ pub fn minimax(
             let mut repetition_copy = board_repetition.clone();
             board_copy.make(&mov);
             add_board_to_repetition(&mut repetition_copy, &board_copy);
-            if who_to_play == Side::White {
-                maxi(&mut board_copy, depth - 1, &repetition_copy)
-            } else {
-                mini(&mut board_copy, depth - 1, &repetition_copy)
-            }
+            minimax_eval(&mut board_copy, depth, &repetition_copy)
         })
         .collect::<Vec<_>>();
 
-    moves[max_eval_index(&evals).unwrap()]
+    let best_eval = if who_to_play == Side::White {
+        max_index(&evals).unwrap()
+    } else {
+        min_index(&evals).unwrap()
+    };
+    moves[best_eval]
 }
 
-fn max_eval_index(evals: &[i64]) -> Option<usize> {
-    if evals.is_empty() {
-        return None;
-    }
-    if evals.len() == 1 {
-        return Some(0);
-    }
-
-    let mut max = evals[0];
-    let mut max_index = 0;
-    for (index, i) in evals[1..].iter().enumerate() {
-        println!("{} {} {}", max, index, i);
-        if *i > max {
-            max = *i;
-            max_index = index;
-        }
-    }
-    return Some(max_index + 1);
-}
-
-fn maxi(board: &mut SearchBoard, depth: i32, board_repetition: &RepetitionHashmap) -> i64 {
+fn minimax_eval(board: &mut SearchBoard, depth: i32, board_repetition: &RepetitionHashmap) -> i64 {
     if depth == 0 {
         return evaluate(&board);
     }
     let (pin_state, check_paths) = board.legal_data();
     let moves = board.find_all_moves(pin_state, check_paths);
-    let mut max = i64::MIN;
+    let mut best = if board.side() == Side::Black {
+        i64::MIN
+    } else {
+        i64::MAX
+    };
     for mov in moves.iter() {
         let mut repetition_copy = board_repetition.clone();
         let unmake = Unmove::new(mov, &board);
         board.make(mov);
 
         add_board_to_repetition(&mut repetition_copy, board);
-        let score = mini(board, depth - 1, &repetition_copy);
-        if score > max {
-            max = score;
+        let score = minimax_eval(board, depth - 1, &repetition_copy);
+
+        if board.side() == Side::White {
+            best = best.max(score);
+        } else {
+            best = best.min(score)
         }
 
         board.unmake(unmake);
     }
-    max
-}
-fn mini(board: &mut SearchBoard, depth: i32, board_repetition: &RepetitionHashmap) -> i64 {
-    if is_draw_repetition(board, &board_repetition) {
-        return 0;
-    }
-    if depth == 0 {
-        return evaluate(&board);
-    }
-    let (pin_state, check_paths) = board.legal_data();
-    let moves = board.find_all_moves(pin_state, check_paths);
-    let mut min = i64::MAX;
-    for mov in moves.iter() {
-        let mut repetition_copy = board_repetition.clone();
-        let unmake = Unmove::new(mov, &board);
-        board.make(mov);
-
-        add_board_to_repetition(&mut repetition_copy, board);
-        let score = maxi(board, depth - 1, &repetition_copy);
-        if score < min {
-            min = score;
-        }
-
-        board.unmake(unmake);
-    }
-    min
+    best
 }
 
 fn get_relevant_eval(evals: &[i64], side: Side) -> Option<(usize, i64)> {
