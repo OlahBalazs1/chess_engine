@@ -7,7 +7,8 @@ use nohash_hasher::BuildNoHashHasher;
 
 use crate::{
     board::SearchBoard,
-    engine::{add_board_to_repetition, evaluate::outcome, is_draw_repetition, minimax},
+    engine::minimax::minimax,
+    engine::{add_board_to_repetition, evaluate::outcome, is_draw_repetition},
     moving::Move,
     piece::Side,
 };
@@ -18,7 +19,8 @@ pub fn play(depth: i32, mut board: SearchBoard, player_side: Side) {
     loop {
         println!("{}", board.state);
         if board.side() == player_side.opposite() {
-            let Some(chosen_move) = minimax(board.clone(), depth, &repetitions) else {
+            let Some(chosen_move) = minimax(board.clone(), depth, &repetitions).get(0).copied()
+            else {
                 break;
             };
             println!("{}", chosen_move);
@@ -58,7 +60,7 @@ pub fn autoplay(depth: i32, mut board: SearchBoard) {
     let mut repetition = HashMap::with_hasher(BuildNoHashHasher::new());
     loop {
         println!("{}", board.state);
-        let Some(chosen_move) = minimax(board.clone(), depth, &repetition) else {
+        let Some(chosen_move) = minimax(board.clone(), depth, &repetition).get(0).copied() else {
             break;
         };
         println!("{}", chosen_move);

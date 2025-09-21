@@ -3,7 +3,7 @@ use std::ops::Mul;
 use crate::{
     board::SearchBoard,
     engine::{RepetitionHashmap, is_draw_repetition, who2move},
-    moving::Move,
+    moving::{Move, MoveType},
     piece::{Piece, PieceType, Side},
     position::Position,
 };
@@ -40,7 +40,7 @@ pub fn eval_score(board: &SearchBoard) -> i64 {
 
 pub fn side_dependent_eval(board: &SearchBoard, is_check: bool, moves: &[Move]) -> i64 {
     let mut eval = 0;
-    eval += (moves.len() / 10) as i64;
+    eval += moves.len().isqrt() as i64;
     if is_check {
         eval -= 10
     }
@@ -80,6 +80,14 @@ fn get_material(piece: Piece) -> i64 {
         King => KING_VALUE,
     }
     .mul(if Side::White == piece.side() { 1 } else { -1 })
+}
+
+fn rate_move(mov: &Move) -> i64 {
+    match mov.move_type {
+        // en passant is clearly the best
+        MoveType::EnPassant => i64::MAX,
+        _ => i64::MIN,
+    }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
