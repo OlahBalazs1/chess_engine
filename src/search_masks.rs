@@ -1,6 +1,6 @@
 use crate::{piece::Side, position::Offset};
 use array_init::array_init;
-use std::{cell::LazyCell, sync::LazyLock};
+use std::sync::LazyLock;
 
 use crate::position::Position;
 

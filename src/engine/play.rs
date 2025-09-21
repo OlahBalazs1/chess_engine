@@ -6,7 +6,7 @@ use std::{
 use nohash_hasher::BuildNoHashHasher;
 
 use crate::{
-    board::{self, SearchBoard},
+    board::SearchBoard,
     engine::{add_board_to_repetition, evaluate::outcome, is_draw_repetition, minimax},
     moving::Move,
     piece::Side,

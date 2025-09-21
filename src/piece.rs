@@ -1,8 +1,4 @@
-use crate::position::Position;
-use std::{
-    fmt::{write, Debug, Display},
-    ops::Deref,
-};
+use std::fmt::Debug;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
 #[repr(u8)]
@@ -120,12 +116,6 @@ impl Side {
     }
 }
 
-#[inline]
-pub fn occupied(bitboard: u64, pos: Position) -> bool {
-    bitboard & (1 << pos.index()) != 0
-}
-
-use PieceType::*;
 impl Debug for Piece {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {

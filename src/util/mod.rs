@@ -11,7 +11,6 @@ pub fn max_index(evals: &[i64]) -> Option<usize> {
     let mut max = evals[0];
     let mut max_index = 0;
     for (index, i) in evals[1..].iter().enumerate() {
-        println!("{} {} {}", max, index, i);
         if *i > max {
             max = *i;
             max_index = index;
@@ -30,7 +29,6 @@ pub fn min_index(evals: &[i64]) -> Option<usize> {
     let mut min = evals[0];
     let mut min_index = 0;
     for (index, i) in evals[1..].iter().enumerate() {
-        println!("{} {} {}", min, index, i);
         if *i < min {
             min = *i;
             min_index = index;

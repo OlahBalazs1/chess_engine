@@ -1,16 +1,17 @@
+#[allow(dead_code)]
 pub mod evaluate;
+#[allow(dead_code)]
 pub mod play;
 use rayon::prelude::*;
-use std::{cmp, collections::HashMap, iter::zip};
+use std::collections::HashMap;
 
-use nohash_hasher::{BuildNoHashHasher, NoHashHasher};
+use nohash_hasher::BuildNoHashHasher;
 
 use self::evaluate::*;
 use crate::{
-    board::{self, BoardState, SearchBoard},
+    board::{BoardState, SearchBoard},
     moving::{Move, Unmove},
     piece::{PieceType, Side},
-    search_data::CheckPath,
     util::{max_index, min_index},
 };
 type ZobristHash = u64;
@@ -21,7 +22,7 @@ pub fn minimax(board: SearchBoard, depth: i32, repetitions: &RepetitionHashmap) 
         panic!("Don't call minimax() with a depth of 0")
     }
     let (pin_state, check_paths) = board.legal_data();
-    let is_check = check_paths.is_check();
+    // let is_check = check_paths.is_check();
     let moves = board.find_all_moves(pin_state, check_paths);
     let evals = moves
         .par_iter()

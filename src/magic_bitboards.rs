@@ -1,18 +1,10 @@
 use crate::hashers::*;
-use crate::{
-    moving::{Move, MoveType},
-    piece::PieceType,
-    position::{Offset, Position},
-};
-use std::cell::{LazyCell, OnceCell, UnsafeCell};
+use crate::position::{Offset, Position};
 use std::fmt::Debug;
-use std::mem::MaybeUninit;
-use std::sync::{Arc, OnceLock};
 use std::{iter, sync::LazyLock};
 
 struct MagicDataBuilder {
     normal: Vec<Position>,
-    takes: Vec<Position>,
     ends: Vec<Position>,
     bitboard: u64,
 }
@@ -20,18 +12,12 @@ impl MagicDataBuilder {
     fn new() -> Self {
         Self {
             normal: Vec::with_capacity(16),
-            takes: Vec::with_capacity(4),
             ends: Vec::with_capacity(4),
             bitboard: 0,
         }
     }
     fn add_normal(&mut self, data: Position) {
         self.normal.push(data);
-        self.bitboard |= data.as_mask()
-    }
-
-    fn add_take(&mut self, data: Position) {
-        self.takes.push(data);
         self.bitboard |= data.as_mask()
     }
 
@@ -55,7 +41,7 @@ pub struct MagicData {
     pub ends: Box<[Position]>,
     pub bitboard: u64,
 }
-use std::iter::{Chain, Copied};
+use std::iter::Copied;
 use std::slice::Iter;
 impl MagicData {
     pub fn possible_takes(&self) -> Copied<Iter<Position>> {
@@ -125,13 +111,6 @@ pub struct MagicHasher {
 }
 
 impl MagicHasher {
-    const fn new(premask: u64, magic: u64, shift: u8) -> Self {
-        Self {
-            premask,
-            magic,
-            shift,
-        }
-    }
     const fn hash(&self, mut blockers: u64) -> u64 {
         blockers &= self.premask;
         blockers = blockers.wrapping_mul(self.magic);
@@ -300,41 +279,6 @@ fn rook_indices(pos: Position) -> Vec<u8> {
     indices
 }
 
-pub fn test_rook_indices() {
-    // top left, top row, top right, middle left, middle middle, middle right, bottom left, bottom
-    // middle, bottom right
-    let test_states = [
-        Position::new(0, 0),
-        Position::new(4, 0),
-        Position::new(7, 0),
-        Position::new(0, 4),
-        Position::new(4, 4),
-        Position::new(7, 4),
-        Position::new(0, 7),
-        Position::new(4, 7),
-        Position::new(7, 7),
-    ];
-    let answers: [u64; 9] = [
-        0x101010101017e,
-        0x1010101010106e,
-        0x8080808080807e,
-        0x1017e01010100,
-        0x10106e10101000,
-        0x80807e80808000,
-        0x7e01010101010100,
-        0x6e10101010101000,
-        0x7e80808080808000,
-    ];
-
-    for (test, answer) in iter::zip(test_states, answers) {
-        let indices = rook_indices(test);
-        let temp = indices.iter().fold(0_u64, |acc, i| acc | (1 << i));
-        if temp != answer {
-            panic!("Bad index: {}\n expected: {}\n got: {}", test, answer, temp);
-        }
-    }
-}
-
 fn generate_bishop_blockers(pos: Position) -> Box<[u64]> {
     let indices = bishop_indices(pos);
     let mut blockers = vec![];
@@ -377,6 +321,7 @@ fn bishop_indices(pos: Position) -> Vec<u8> {
     indices
 }
 
+#[allow(dead_code)]
 pub fn print_bits(i: u64) {
     for y in (0..8).rev() {
         for x in 0..8 {

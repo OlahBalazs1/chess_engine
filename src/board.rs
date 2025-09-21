@@ -1,15 +1,13 @@
-use std::cell::LazyCell;
 use std::fmt::{Debug, Display};
 use std::hash::Hash;
 use std::mem;
-use std::ops::{Deref, DerefMut, Index, IndexMut};
-use std::pin::Pin;
+use std::ops::{Deref, DerefMut};
 
 use crate::board_repr::*;
-use crate::magic_bitboards::{MAGIC_MOVER, print_bits};
-use crate::moving::{Castle, Move, MoveType, Unmove};
-use crate::piece::{self, Piece, PieceType, Side};
-use crate::position::{self, Position};
+use crate::magic_bitboards::MAGIC_MOVER;
+use crate::moving::{Move, MoveType, Unmove};
+use crate::piece::{Piece, PieceType, Side};
+use crate::position::Position;
 use crate::search_data::{CheckPath, PinState};
 use crate::search_masks::{KING_MASKS, KNIGHT_MASKS, choose_home_rook, choose_pawn_take_mask};
 use crate::zobrist::*;
@@ -36,7 +34,6 @@ impl SearchBoard {
     pub fn find_all_moves(&self, pin_state: PinState, check_paths: CheckPath) -> Vec<Move> {
         use crate::search::*;
         let mut moves = Vec::with_capacity(219);
-        let allies = self.side_bitboards(self.side()).combined();
         let enemy = self.side().opposite();
         let mut attacked_squares = 0;
         let all = (self.white.combined() | self.black.combined())
@@ -143,12 +140,6 @@ impl SearchBoard {
         if increment_halfmove {
             self.halfmove_clock += 1;
         }
-        // match self.check_paths {
-        //     CheckPath::Blockable(path) => print_bits(path),
-        //     _ => {}
-        // }
-        // self.pin_state = PinState::default();
-        // self.check_paths = CheckPath::default();
 
         self.state
             .zobrist
@@ -265,10 +256,6 @@ impl SearchBoard {
             .expect("Invalid FEN")
             .parse()
             .expect("Invalid FEN");
-        let attacked = state.get_attacked(state.side);
-
-        let white_king = state.find_king(Side::White);
-        let black_king = state.find_king(Side::Black);
         Self {
             halfmove_clock,
             state,
@@ -444,7 +431,7 @@ impl BoardState {
 
     pub fn from_fen(fen: &str) -> Self {
         let split = fen.split(" ").collect::<Vec<_>>();
-        let [piece_data, active, rights, ep, _, _] = fen.split(" ").collect::<Vec<_>>()[..6] else {
+        let [piece_data, active, rights, ep, _, _] = split[..6] else {
             panic!("Invalid FEN")
         };
         let mut white_bits = Bitboards { state: [0; 6] };

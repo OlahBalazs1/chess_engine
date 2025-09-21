@@ -1,10 +1,7 @@
-use std::pin::Pin;
-
 use crate::{
-    board::{BoardState, SearchBoard},
+    board::BoardState,
     board_repr::{BISHOP, KNIGHT, PAWN, QUEEN, ROOK},
-    magic_bitboards::{MAGIC_MOVER, MagicData, MagicMover, print_bits},
-    perft::TARGETS,
+    magic_bitboards::{MAGIC_MOVER, MagicMover},
     piece::Side,
     position::{Offset, Position},
     search_masks::{KNIGHT_MASKS, choose_pawn_take_mask},
@@ -312,10 +309,4 @@ impl Default for CheckPath {
     fn default() -> Self {
         Self::None
     }
-}
-
-pub struct AttackBoards {
-    pub singular: u64,
-    pub diagonal: u64,
-    pub parallel: u64,
 }

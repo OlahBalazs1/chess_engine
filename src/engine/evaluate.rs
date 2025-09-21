@@ -6,10 +6,8 @@ use crate::{
     moving::Move,
     piece::{Piece, PieceType, Side},
     position::Position,
-    search_data::{CheckPath, PinState},
 };
 use PieceType::*;
-use rand::random;
 
 const PAWN_VALUE: i64 = 1;
 const KNIGHT_VALUE: i64 = 3;

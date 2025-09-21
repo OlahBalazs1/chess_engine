@@ -1,25 +1,11 @@
-use std::{
-    alloc::System,
-    cell::UnsafeCell,
-    collections::{HashMap, HashSet},
-    hash::Hash,
-    mem::MaybeUninit,
-    ops::Deref,
-    sync::{Arc, LazyLock, Mutex},
-    time::SystemTime,
-};
-
 use crate::{
-    board::{self, BoardState, SearchBoard},
-    board_repr::KING,
-    magic_bitboards::{MAGIC_MOVER, init_magic_mover, print_bits},
-    moving::{Move, MoveType, Unmove},
+    board::SearchBoard,
+    magic_bitboards::init_magic_mover,
+    moving::{Move, Unmove},
     perft_data::PerftData,
-    piece::PieceType,
-    position::Position,
-    search_data::{CheckPath, PinState},
     search_masks::init_masks,
 };
+use std::time::SystemTime;
 
 use owo_colors::*;
 use std::thread::scope;
@@ -57,9 +43,6 @@ pub fn perft<const DEPTH: usize>(mut board: SearchBoard) -> [PerftData; DEPTH] {
 
     return results;
 }
-
-use MoveType::*;
-use PieceType::*;
 
 fn perft_search<const N: usize>(
     board: &mut SearchBoard,

@@ -1,10 +1,8 @@
 use crate::{
     board::BoardState,
-    moving::Move,
     piece::{Piece, PieceType, Side},
     position::Position,
 };
-use PieceType::*;
 use rand::prelude::*;
 use std::sync::LazyLock;
 

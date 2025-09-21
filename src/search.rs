@@ -1,13 +1,8 @@
-use rand::seq::IndexedRandom;
-
-use crate::board::BoardState;
-use crate::board_repr::{Bitboards, BoardRepr};
+use crate::board_repr::BoardRepr;
 use crate::piece::Piece;
 use crate::search_data::{CheckPath, PinState};
-use crate::search_masks::{KING_MASKS, KNIGHT_MASKS, SingularData, choose_pawn_take_mask};
-use std::ops::{Deref, Index, Range};
-use std::sync::Arc;
-use std::{iter, pin, u64};
+use crate::search_masks::{KING_MASKS, KNIGHT_MASKS, choose_pawn_take_mask};
+use std::u64;
 
 use crate::{
     board::SearchBoard,
@@ -70,7 +65,6 @@ pub fn find_pawn(
 }
 fn find_pawn_unrestricted(
     moves: &mut Vec<Move>,
-
     pos: Position,
     side: Side,
     allies: u64,
@@ -94,9 +88,8 @@ fn find_pawn_unrestricted(
         }
     }
     let all_pieces = allies | enemies;
-
     if let Some(to) = pos.with_offset(Offset::new(0, yo))
-        && all_square_data.get(to).is_none()
+        && all_pieces & to.as_mask() == 0
     {
         gen_pawn_moves(moves, pos, to, None);
     } else {
@@ -105,7 +98,7 @@ fn find_pawn_unrestricted(
 
     if matches!(pos.y(), 1 | 6)
         && let Some(to) = pos.with_offset(Offset::new(0, yo * 2))
-        && all_square_data.get(to).is_none()
+        && all_pieces & to.as_mask() == 0
     {
         gen_pawn_moves(moves, pos, to, None);
     } else {
@@ -145,7 +138,7 @@ fn find_pawn_restricted(
     let all_pieces = allies | enemies;
 
     if let Some(to) = pos.with_offset(Offset::new(0, yo))
-        && all_square_data.get(to).is_none()
+        && all_pieces | to.as_mask() == 0
     {
         if must_block & to.as_mask() != 0 {
             gen_pawn_moves(moves, pos, to, None);
@@ -155,7 +148,7 @@ fn find_pawn_restricted(
     }
     if matches!(pos.y(), 1 | 6)
         && let Some(to) = pos.with_offset(Offset::new(0, yo * 2))
-        && all_square_data.get(to).is_none()
+        && all_pieces | to.as_mask() == 0
         && must_block & to.as_mask() != 0
     {
         if must_block & to.as_mask() != 0 {

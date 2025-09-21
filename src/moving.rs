@@ -1,7 +1,6 @@
 use crate::board::{BoardState, SearchBoard};
 use crate::piece::{Piece, PieceType};
 use crate::position::Position;
-use crate::search_data::{CheckPath, PinState};
 use std::fmt::{Debug, Display};
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
@@ -40,12 +39,6 @@ pub struct Move {
     pub from: Position,
     pub to: Position,
     pub take: Option<Piece>,
-}
-
-pub enum Castle {
-    Short { from: Position, to: Position },
-    Long { from: Position, to: Position },
-    Not,
 }
 
 impl Move {
@@ -126,7 +119,7 @@ impl Move {
                 MoveType::ShortCastle
             }
         } else if piece == PieceType::Pawn && take.is_none() && end.x() != start.x() {
-            if let Some(ep_square) = board.en_passant_square {
+            if let Some(_) = board.en_passant_square {
                 MoveType::EnPassant
             } else {
                 return None;

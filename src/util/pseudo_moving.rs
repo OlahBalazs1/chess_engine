@@ -1,4 +1,3 @@
-use owo_colors::{OwoColorize, colors::White};
 pub const ROOK_DIRECTIONS: [Offset; 4] = [
     Offset::new(1, 0),
     Offset::new(0, 1),
@@ -45,15 +44,14 @@ const KNIGHT_DIRECTIONS: [Offset; 8] = [
 ];
 
 use crate::{
-    board::{self, SearchBoard},
-    board_repr::{BoardRepr, KING, KNIGHT, PAWN},
+    board::SearchBoard,
+    board_repr::BoardRepr,
     moving::{Move, MoveType},
-    piece::{self, Piece, PieceType, Side},
+    piece::{Piece, PieceType, Side},
     position::{Offset, Position},
-    search_data::{CheckPath, PinState},
-    search_masks::{KING_MASKS, KNIGHT_MASKS, choose_pawn_take_mask},
 };
 
+#[allow(unused_imports)]
 use crate::search::{
     find_bishop as legal_bishop, find_king as legal_king, find_knight as legal_knight,
     find_pawn as legal_pawn, find_queen as legal_queen, find_rook as legal_rook,
@@ -63,8 +61,8 @@ pub fn find_pawn(
     moves: &mut Vec<Move>,
     pos: Position,
     side: Side,
-    allies: u64,
-    enemies: u64,
+    _allies: u64,
+    _enemies: u64,
     all_square_data: &BoardRepr,
     ep_square: Option<Position>,
 ) {
@@ -72,9 +70,6 @@ pub fn find_pawn(
     let yo = match side {
         Side::White => 1,
         Side::Black => -1,
-    };
-    let Some(offset_for_take) = pos.with_offset(Offset::new(0, yo)) else {
-        return;
     };
     // let take_positions = &PAWN_TAKE_MASKS[*offset_for_take as usize].positions;
 
@@ -120,7 +115,6 @@ fn gen_pawn_moves(moves: &mut Vec<Move>, from: Position, to: Position, take: Opt
 }
 
 pub fn find_knight(moves: &mut Vec<Move>, pos: Position, state: &SearchBoard) {
-    let side = state.side();
     let all_square_data = &state.state.board;
 
     moves.extend(
@@ -220,12 +214,11 @@ fn traverse_direction(
     moves: &mut Vec<Move>,
     dir: Offset,
     pos: Position,
-    allies: u64,
-    enemies: u64,
+    _allies: u64,
+    _enemies: u64,
     state: &SearchBoard,
     piece_type: PieceType,
 ) {
-    let side = state.get_piece_at(pos).unwrap().side();
     for mul in 1..8 {
         let Some(multiplied_dir) = dir.mul(mul) else {
             return;
@@ -234,22 +227,16 @@ fn traverse_direction(
             return;
         };
 
-        match state.get_piece_at(offset_pos) {
-            Some(i) => {
-                moves.push(Move::new(
-                    pos,
-                    offset_pos,
-                    MoveType::Normal(piece_type),
-                    state.get_piece_at(offset_pos),
-                ));
-                return;
-            }
-            None => moves.push(Move::new(
-                pos,
-                offset_pos,
-                MoveType::Normal(piece_type),
-                state.get_piece_at(offset_pos),
-            )),
+        let taken = state.get_piece_at(offset_pos);
+        moves.push(Move::new(
+            pos,
+            offset_pos,
+            MoveType::Normal(piece_type),
+            taken,
+        ));
+
+        if taken.is_some() {
+            return;
         }
     }
 }
@@ -293,36 +280,6 @@ impl SearchBoard {
                 Some(Bishop) => find_bishop(&mut moves, i, allies, enemies, self),
                 Some(Queen) => find_queen(&mut moves, i, allies, enemies, self),
                 Some(King) => find_king(&mut moves, i, self),
-                None => continue,
-            }
-        }
-
-        moves
-    }
-    pub fn find_pseudo_and_legal(
-        &self,
-        side: Side,
-        attacked: u64,
-        pin_state: &PinState,
-        check_paths: &CheckPath,
-    ) -> Vec<Move> {
-        use PieceType::*;
-        let mut moves = Vec::new();
-        let allies = self.side_bitboards(side).combined();
-        let enemies = self.side_bitboards(side.opposite()).combined();
-        let all_square_data = &self.state.board;
-        for i in (0..64).map(Position::from_index) {
-            let Some(found_piece) = self.get_piece_at(i) else {
-                continue;
-            };
-            match found_piece.filter_side(side).map(|i| i.piece_type) {
-                Some(Pawn) => legal_pawn(&mut moves, i, self, pin_state, check_paths),
-                // Some(Rook) => find_rook(&mut moves, i, allies, enemies, self),
-                Some(Rook) => legal_rook(&mut moves, i, self, pin_state, check_paths),
-                Some(Knight) => legal_knight(&mut moves, i, self, pin_state, check_paths),
-                Some(Bishop) => legal_bishop(&mut moves, i, self, pin_state, check_paths),
-                Some(Queen) => legal_queen(&mut moves, i, self, pin_state, check_paths),
-                Some(King) => legal_king(&mut moves, i, self, check_paths, attacked),
                 None => continue,
             }
         }
