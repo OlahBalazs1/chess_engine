@@ -238,8 +238,8 @@ impl PinState {
                         .possible_takes()
                         .filter(|i| i.as_mask() & diagonal_attackers != 0)
                         .filter(|i| {
-                            (i.x() < ep.x() && ep.x() < king_pos.x())
-                                || (i.x() > ep.x() && ep.x() > king_pos.x())
+                            is_middle_inbetween(i.x(), ep.x(), king_pos.x())
+                                && is_middle_inbetween(i.y(), ep.y(), king_pos.y())
                         })
                         .next()
                     {
@@ -309,4 +309,8 @@ impl Default for CheckPath {
     fn default() -> Self {
         Self::None
     }
+}
+
+fn is_middle_inbetween(x1: u8, middle: u8, x2: u8) -> bool {
+    (x1 < middle && middle < x2) || (x1 > middle && middle > x2)
 }
