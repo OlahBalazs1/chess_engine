@@ -14,6 +14,17 @@ impl PieceType {
     pub fn with_side(self, side: Side) -> Piece {
         Piece::new(self, side)
     }
+
+    pub fn as_char(&self) -> char {
+        match self {
+            PieceType::Rook => 'R',
+            PieceType::Knight => 'N',
+            PieceType::Bishop => 'B',
+            PieceType::Queen => 'Q',
+            PieceType::King => 'K',
+            PieceType::Pawn => 'P',
+        }
+    }
 }
 use PieceType::*;
 use Side::*;

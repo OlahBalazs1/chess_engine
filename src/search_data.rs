@@ -30,7 +30,7 @@ impl PinState {
             return self.y_aligned;
         }
 
-        0
+        return 0;
     }
 }
 
