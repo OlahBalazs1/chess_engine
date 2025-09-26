@@ -89,12 +89,10 @@ fn find_pawn_unrestricted(
         }
     }
     let all_pieces = allies | enemies;
-    if let Some(to) = pos.with_offset(Offset::new(0, yo)) {
-        if all_pieces & to.as_mask() == 0 {
-            gen_pawn_moves(moves, pos, to, None);
-        } else {
-            return;
-        }
+    if let Some(to) = pos.with_offset(Offset::new(0, yo))
+        && all_pieces & to.as_mask() == 0
+    {
+        gen_pawn_moves(moves, pos, to, None);
     } else {
         return;
     }
@@ -141,13 +139,11 @@ fn find_pawn_restricted(
     if let Some(to) = pos.with_offset(Offset::new(0, yo))
         && all_pieces & to.as_mask() == 0
     {
-        if all_pieces & to.as_mask() == 0 {
-            if must_block & to.as_mask() != 0 {
-                gen_pawn_moves(moves, pos, to, None);
-            }
-        } else {
-            return;
+        if must_block & to.as_mask() != 0 {
+            gen_pawn_moves(moves, pos, to, None);
         }
+    } else {
+        return;
     }
     if matches!(pos.y(), 1 | 6)
         && let Some(to) = pos.with_offset(Offset::new(0, yo * 2))
