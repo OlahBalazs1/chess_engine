@@ -9,10 +9,8 @@ use crate::{
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct PinState {
-    pub diagonal_1: u64,
-    pub diagonal_2: u64,
-    pub x_aligned: u64,
-    pub y_aligned: u64,
+    rook_directions: [u64; 4],
+    bishop_directions: [u64; 4],
 
     pub can_en_passant: bool,
 }
@@ -20,14 +18,16 @@ pub struct PinState {
 impl PinState {
     pub fn choose_relevant(&self, pos: Position) -> u64 {
         let mask = pos.as_mask();
-        if self.diagonal_1 & mask != 0 {
-            return self.diagonal_1;
-        } else if self.diagonal_2 & mask != 0 {
-            return self.diagonal_2;
-        } else if self.x_aligned & mask != 0 {
-            return self.x_aligned;
-        } else if self.y_aligned & mask != 0 {
-            return self.y_aligned;
+
+        for i in self.rook_directions {
+            if i & mask != 0 {
+                return i;
+            }
+        }
+        for i in self.bishop_directions {
+            if i & mask != 0 {
+                return i;
+            }
         }
 
         return 0;
@@ -37,10 +37,8 @@ impl PinState {
 impl Default for PinState {
     fn default() -> Self {
         Self {
-            diagonal_1: 0,
-            diagonal_2: 0,
-            x_aligned: 0,
-            y_aligned: 0,
+            rook_directions: [0; 4],
+            bishop_directions: [0; 4],
             can_en_passant: true,
         }
     }
@@ -153,7 +151,8 @@ impl PinState {
     }
 
     pub fn combined(&self) -> u64 {
-        self.diagonal_1 | self.diagonal_2 | self.x_aligned | self.y_aligned
+        self.rook_directions.iter().fold(0, |acc, i| acc | i)
+            | self.bishop_directions.iter().fold(0, |acc, i| acc | i)
     }
     // TODO: Make a set of magic bitboards only for this
     // basically, just ignore the first set of blockers in each direction
@@ -176,47 +175,35 @@ impl PinState {
                 .get_bishop(king_pos, friendlies | enemies)
                 .bitboard;
 
-        let (diagonal_1, diagonal_2) = {
-            let targets = (friendlies & !(first_pass)) | enemies;
-            let cast = magic_mover.get_bishop(king_pos, targets);
-            let mut casts_1: u64 = 0;
-            let mut casts_2: u64 = 0;
+        let mut bishop_directions = [0; 4];
+        let mut bishop_index = 0;
 
-            for i in cast.possible_takes() {
-                if diagonal_attackers & i.as_mask() != 0 {
-                    if (i.x() < king_pos.x() && i.y() < king_pos.y())
-                        || (i.x() > king_pos.x() && i.y() > king_pos.y())
-                    {
-                        casts_1 |= (magic_mover.get_bishop(i, king_mask).bitboard & cast.bitboard)
-                            | i.as_mask();
-                    } else {
-                        casts_2 |= (magic_mover.get_bishop(i, king_mask).bitboard & cast.bitboard)
-                            | i.as_mask();
-                    }
-                }
-            }
-            // print_bits(casts_2);
-            (cast.bitboard & casts_1, cast.bitboard & casts_2)
-        };
-        let (x_aligned, y_aligned) = {
-            let targets = (friendlies & !(first_pass)) | enemies;
-            let cast = magic_mover.get_rook(king_pos, targets);
-            let mut x_casts: u64 = 0;
-            let mut y_casts: u64 = 0;
+        let targets = (friendlies & !(first_pass)) | enemies;
+        let bishop_cast = magic_mover.get_bishop(king_pos, targets);
 
-            for i in cast.possible_takes() {
-                if parallel_attackers & i.as_mask() != 0 {
-                    if i.x() == king_pos.x() {
-                        x_casts |= (magic_mover.get_rook(i, king_mask).bitboard & cast.bitboard)
-                            | i.as_mask();
-                    } else {
-                        y_casts |= (magic_mover.get_rook(i, king_mask).bitboard & cast.bitboard)
-                            | i.as_mask();
-                    }
-                }
+        for i in bishop_cast.possible_takes() {
+            if diagonal_attackers & i.as_mask() != 0 {
+                bishop_directions[bishop_index] = (magic_mover.get_bishop(i, king_mask).bitboard
+                    & bishop_cast.bitboard)
+                    | i.as_mask();
+                bishop_index += 1;
             }
-            (cast.bitboard & x_casts, cast.bitboard & y_casts)
-        };
+        }
+
+        let mut rook_directions = [0; 4];
+        let mut rook_index = 0;
+
+        let rook_cast = magic_mover.get_rook(king_pos, targets);
+
+        for i in rook_cast.possible_takes() {
+            if parallel_attackers & i.as_mask() != 0 {
+                rook_directions[rook_index] = (magic_mover.get_rook(i, king_mask).bitboard
+                    & rook_cast.bitboard)
+                    | i.as_mask();
+                rook_index += 1;
+            }
+        }
+
         let ep = state.en_passant_square.map(|i| {
             i.with_y(match state.side().opposite() {
                 Side::White => 3,
@@ -296,10 +283,8 @@ impl PinState {
         }
 
         PinState {
-            diagonal_1,
-            diagonal_2,
-            x_aligned,
-            y_aligned,
+            rook_directions,
+            bishop_directions,
             can_en_passant,
         }
     }

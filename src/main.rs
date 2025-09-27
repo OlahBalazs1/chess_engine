@@ -28,16 +28,19 @@ fn main() {
     // let board = SearchBoard::default();
     // let player_side = Side::White;
     //
-    println!(
-        "{}",
-        average_time(
-            || {
-                let _ = perft::perft::<5>(SearchBoard::default());
-            },
-            20
-        )
-        .as_millis()
-    );
+    //
+
+    let _ = perft::test_unmake::<5>();
+    // println!(
+    //     "{}",
+    //     average_time(
+    //         || {
+    //             let _ = perft::perft::<5>(SearchBoard::default());
+    //         },
+    //         20
+    //     )
+    //     .as_millis()
+    // );
 
     // let board = SearchBoard::from_fen(
     //     "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1",
