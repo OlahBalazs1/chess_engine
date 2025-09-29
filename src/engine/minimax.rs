@@ -1,6 +1,9 @@
 use std::{collections::HashMap, iter, ops::Deref};
 
-use crate::engine::{self, RepetitionHashmap, add_board_to_repetition};
+use crate::{
+    board,
+    engine::{self, RepetitionHashmap, add_board_to_repetition},
+};
 use nohash_hasher::BuildNoHashHasher;
 use rayon::prelude::*;
 
@@ -27,6 +30,7 @@ pub fn minimax(board: SearchBoard, depth: i32, repetitions: &RepetitionHashmap) 
             add_board_to_repetition(&mut repetition_copy, &board_copy);
             minimax_eval(&mut board_copy, depth, &repetition_copy, i64::MIN, i64::MAX)
         })
+        .map(|i| i.unwrap())
         .collect::<Vec<_>>();
 
     filter_best(&moves, &evals, board.side())
@@ -38,9 +42,9 @@ fn minimax_eval(
     repetitions: &RepetitionHashmap,
     mut alpha: i64,
     mut beta: i64,
-) -> i64 {
+) -> Option<i64> {
     if depth == 0 {
-        return evaluate(&board, repetitions);
+        return Some(evaluate(&board, repetitions));
     }
     let (pin_state, check_paths) = board.legal_data();
     let is_check = check_paths.is_check();
@@ -54,6 +58,13 @@ fn minimax_eval(
         i64::MAX
     };
     for mov in moves.iter() {
+        if let Some(PieceType::King) = mov.take.map(|i| i.piece_type) {
+            println!(
+                "King taken: {} {:?}\n{:?}\n{:?}",
+                mov, mov, board.state, pin_state
+            );
+            return None;
+        }
         let mut repetition_copy;
         if !is_permanent(board, mov) {
             repetition_copy = repetitions.clone();
@@ -64,7 +75,13 @@ fn minimax_eval(
         board.make(mov);
 
         add_board_to_repetition(&mut repetition_copy, board);
-        let score = minimax_eval(board, depth - 1, &repetition_copy, alpha, beta);
+        let Some(score) = minimax_eval(board, depth - 1, &repetition_copy, alpha, beta) else {
+            println!(
+                "King taken: {} {:?}\n{:?}\n{:?}",
+                mov, mov, board.state, pin_state
+            );
+            return None;
+        };
         // here board.side == enemy
         board.unmake(unmake);
         // after unmake, it's the player
@@ -84,10 +101,10 @@ fn minimax_eval(
     }
     let outcome = outcome(board, &moves, is_check, repetitions);
     match outcome {
-        Outcome::Stalemate => 0,
+        Outcome::Stalemate => Some(0),
         // if it's Ongoing, best is the best eval
         // if it ended in checkmate, "best" is the worst for the current side
-        _ => best,
+        _ => Some(best),
     }
 }
 
@@ -137,8 +154,7 @@ impl PartialEq for MinimaxResult {
         if self.len() != other.len() {
             return false;
         }
-        // this has a REALLY bad time complexity, but I don't care as this is not performance
-        // critical
+        // this has a REALLY bad time complexity, but this is not performance critical
         // Also, n <= 219
         // so it will never have a high cost anyway
         for i in self.iter() {

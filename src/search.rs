@@ -32,12 +32,11 @@ pub fn find_pawn(
         CheckPath::Blockable(i) => *i,
         CheckPath::Multiple => return (),
     };
-    let must_block = match (pin_state, check_path) {
-        (0, 0) => 0,
-        (0, 1..) => check_path,
-        (1.., 0) => pin_state,
-        _ => return,
-    };
+
+    if pin_state != 0 && check_path != 0 {
+        return;
+    }
+    let must_block = pin_state | check_path;
 
     if must_block == 0 {
         find_pawn_unrestricted(
@@ -75,33 +74,74 @@ fn find_pawn_unrestricted(
     can_ep: bool,
 ) {
     // takes
-    let yo = match side {
-        Side::White => 1,
-        Side::Black => -1,
-    };
+    // let yo = match side {
+    //     Side::White => 1,
+    //     Side::Black => -1,
+    // };
     let data = &choose_pawn_take_mask(side)[*pos as usize];
 
     for i in data.positions.iter() {
         if enemies & i.as_mask() != 0 {
             gen_pawn_moves(moves, pos, *i, all_square_data.get(*i));
-        } else if ep_square.is_some_and(|ep| ep == *i) && can_ep {
-            moves.push(Move::new(pos, *i, MoveType::EnPassant, None));
+        } else if can_ep {
+            // SAFETY: if ep_square is None, can_ep is false
+            unsafe {
+                if ep_square.unwrap_unchecked() == *i {
+                    moves.push(Move::new(pos, *i, MoveType::EnPassant, None));
+                }
+            }
         }
     }
     let all_pieces = allies | enemies;
-    if let Some(to) = pos.with_offset(Offset::new(0, yo))
-        && all_pieces & to.as_mask() == 0
-    {
-        gen_pawn_moves(moves, pos, to, None);
-    } else {
-        return;
-    }
 
-    if matches!(pos.y(), 1 | 6)
-        && let Some(to) = pos.with_offset(Offset::new(0, yo * 2))
-        && all_pieces & to.as_mask() == 0
-    {
-        gen_pawn_moves(moves, pos, to, None);
+    match (*pos, side) {
+        // white starting
+        // SAFETY: add_y() and sub_y() only fail if the pawn steps off the board
+        // which only happens if a pawn is in an illegal position
+        (8..16, Side::White) => unsafe {
+            let mut to = pos.add_y(1).unwrap_unchecked();
+            if all_pieces & to.as_mask() == 0 {
+                gen_pawn_moves(moves, pos, to, None);
+            } else {
+                return;
+            }
+            to = to.add_y(1).unwrap_unchecked();
+            if all_pieces & to.as_mask() == 0 {
+                gen_pawn_moves(moves, pos, to, None);
+            }
+        },
+        // black starting
+        (48..56, Side::Black) if side == Side::Black => unsafe {
+            let mut to = pos.sub_y(1).unwrap_unchecked();
+            if all_pieces & to.as_mask() == 0 {
+                gen_pawn_moves(moves, pos, to, None);
+            } else {
+                return;
+            }
+            to = to.sub_y(1).unwrap_unchecked();
+            if all_pieces & to.as_mask() == 0 {
+                gen_pawn_moves(moves, pos, to, None);
+            }
+        },
+        // a3 - g6
+        (16..48, Side::White) => unsafe {
+            let to = pos.add_y(1).unwrap_unchecked();
+            if all_pieces & to.as_mask() == 0 {
+                gen_pawn_moves(moves, pos, to, None);
+            }
+        },
+        // a3 - g6
+        (16..48, Side::Black) => unsafe {
+            let to = pos.sub_y(1).unwrap_unchecked();
+            if all_pieces & to.as_mask() == 0 {
+                gen_pawn_moves(moves, pos, to, None);
+            }
+        },
+        (i, _) => panic!(
+            "Pawn in illegal position: {}: {}",
+            Position::from_index(i),
+            i
+        ),
     }
 }
 
@@ -136,23 +176,58 @@ fn find_pawn_restricted(
 
     let all_pieces = allies | enemies;
 
-    if let Some(to) = pos.with_offset(Offset::new(0, yo))
-        && all_pieces & to.as_mask() == 0
-    {
-        if must_block & to.as_mask() != 0 {
-            gen_pawn_moves(moves, pos, to, None);
-        }
-    } else {
-        return;
-    }
-    if matches!(pos.y(), 1 | 6)
-        && let Some(to) = pos.with_offset(Offset::new(0, yo * 2))
-        && all_pieces & to.as_mask() == 0
-        && must_block & to.as_mask() != 0
-    {
-        if must_block & to.as_mask() != 0 {
-            gen_pawn_moves(moves, pos, to, None);
-        }
+    match (*pos, side) {
+        // white starting
+        // SAFETY: add_x() and sub_x() only fail if the pawn steps off the board
+        // which only happens if a pawn is in an illegal position
+        (8..16, Side::White) => unsafe {
+            let mut to = pos.add_y(1).unwrap_unchecked();
+            if all_pieces & to.as_mask() == 0 {
+                if must_block & to.as_mask() != 0 {
+                    gen_pawn_moves(moves, pos, to, None);
+                }
+            } else {
+                return;
+            }
+            to = to.add_y(1).unwrap_unchecked();
+            if all_pieces & to.as_mask() == 0 && must_block & to.as_mask() != 0 {
+                gen_pawn_moves(moves, pos, to, None);
+            }
+        },
+        // black starting
+        (48..56, Side::Black) if side == Side::Black => unsafe {
+            let mut to = pos.sub_y(1).unwrap_unchecked();
+            if all_pieces & to.as_mask() == 0 {
+                if must_block & to.as_mask() != 0 {
+                    gen_pawn_moves(moves, pos, to, None);
+                }
+            } else {
+                return;
+            }
+            to = to.sub_y(1).unwrap_unchecked();
+            if all_pieces & to.as_mask() == 0 && must_block & to.as_mask() != 0 {
+                gen_pawn_moves(moves, pos, to, None);
+            }
+        },
+        // a3 - g6
+        (16..48, Side::White) => unsafe {
+            let to = pos.add_y(1).unwrap_unchecked();
+            if all_pieces & to.as_mask() == 0 && must_block & to.as_mask() != 0 {
+                gen_pawn_moves(moves, pos, to, None);
+            }
+        },
+        // a3 - g6
+        (16..48, Side::Black) => unsafe {
+            let to = pos.sub_y(1).unwrap_unchecked();
+            if all_pieces & to.as_mask() == 0 && must_block & to.as_mask() != 0 {
+                gen_pawn_moves(moves, pos, to, None);
+            }
+        },
+        (i, _) => panic!(
+            "Pawn in illegal position: {}: {}",
+            Position::from_index(i),
+            i
+        ),
     }
 }
 

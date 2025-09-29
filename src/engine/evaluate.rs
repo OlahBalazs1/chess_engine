@@ -2,19 +2,21 @@ use std::ops::Mul;
 
 use crate::{
     board::SearchBoard,
-    engine::{RepetitionHashmap, is_draw_repetition, who2move},
+    engine::{
+        RepetitionHashmap,
+        constants::{
+            BISHOP_POSITIONAL, BISHOP_VALUE, KING_POSITIONAL, KING_VALUE, KNIGHT_POSITIONAL,
+            KNIGHT_VALUE, PAWN_POSITIONAL, PAWN_VALUE, QUEEN_POSITIONAL, QUEEN_VALUE,
+            ROOK_POSITIONAL, ROOK_VALUE,
+        },
+        is_draw_repetition, who2move,
+    },
     moving::{Move, MoveType},
-    piece::{Piece, PieceType, Side},
+    piece::{self, Piece, PieceType, Side},
     position::Position,
 };
 use PieceType::*;
 
-const PAWN_VALUE: i64 = 1;
-const KNIGHT_VALUE: i64 = 3;
-const BISHOP_VALUE: i64 = 3;
-const ROOK_VALUE: i64 = 5;
-const QUEEN_VALUE: i64 = 9;
-const KING_VALUE: i64 = 200;
 pub fn evaluate(board: &SearchBoard, repetitions: &RepetitionHashmap) -> i64 {
     let (pin_state, check_paths) = board.legal_data();
     let is_check = check_paths.is_check();
@@ -33,6 +35,7 @@ pub fn eval_score(board: &SearchBoard) -> i64 {
     for pos in (0..64).map(Position::from_index) {
         if let Some(piece) = board.board.board[*pos as usize] {
             eval += get_material(piece);
+            eval += get_positional(piece, pos)
         }
     }
     eval
@@ -82,6 +85,17 @@ fn get_material(piece: Piece) -> i64 {
     .mul(if Side::White == piece.side() { 1 } else { -1 })
 }
 
+fn get_positional(piece: Piece, pos: Position) -> i64 {
+    (match piece.role() {
+        Pawn => PAWN_POSITIONAL,
+        Rook => ROOK_POSITIONAL,
+        Knight => KNIGHT_POSITIONAL,
+        Bishop => BISHOP_POSITIONAL,
+        Queen => QUEEN_POSITIONAL,
+        King => KING_POSITIONAL,
+    }[*pos as usize])
+        .mul(if Side::White == piece.side() { 1 } else { -1 })
+}
 fn rate_move(mov: &Move) -> i64 {
     match mov.move_type {
         // en passant is clearly the best

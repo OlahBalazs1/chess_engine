@@ -352,21 +352,7 @@ impl BoardState {
         }
     }
     pub fn find_king(&self, side: Side) -> Position {
-        let pieces = self.board.board.iter().enumerate().map(|(pos, piece)| {
-            (
-                Position::from_index(pos as u8),
-                piece.and_then(|piece| piece.filter_side(side)),
-            )
-        });
-        for (pos, piece) in pieces {
-            if let Some(piece) = piece {
-                match piece.role() {
-                    King => return pos,
-                    _ => {}
-                }
-            }
-        }
-        panic!("No king found")
+        self.board.find_king(side)
     }
     pub fn get_attacked(&self, enemy: Side) -> u64 {
         let mut attacked_squares = 0;

@@ -20,17 +20,27 @@ mod zobrist;
 use crate::board::SearchBoard;
 use crate::engine::play::autoplay;
 use crate::perft::KIWIPETE_TARGETS;
+use crate::piece::Side;
 pub use crate::util::pseudo_moving;
 
 fn main() {
-    let depth = 5;
-    let board = SearchBoard::default();
-    // let player_side = Side::White;
+    // let board =
+    //     SearchBoard::from_fen("r1b1k1nr/pppp1ppp/n7/4p3/5P2/2NB1N2/PPPB1PPP/R2QR1K1 b kq - 0 1");
+    // let (pin_state, check_path) = board.legal_data();
+    // println!(
+    //     "black: {}\nWhite: {}",
+    //     board.side_king(Side::Black),
+    //     board.side_king(Side::White)
+    // );
+    // println!("{:?}\n{:?}", pin_state, check_path);
+    // let depth = 5;
+    // let board = SearchBoard::default();
+    // // let player_side = Side::White;
+    //
+    //
+    //
 
-    let board = SearchBoard::from_fen(
-        "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1",
-    );
-    perft::test_unmake_custom::<6>(board, KIWIPETE_TARGETS.to_vec());
+    perft::test_unmake::<6>();
     // autoplay(depth, board);
     // if minimax_moves == negamax_moves {
     //     println!("Success!")

@@ -4,6 +4,7 @@ use nohash_hasher::BuildNoHashHasher;
 
 use crate::{board::SearchBoard, piece::Side};
 
+pub mod constants;
 #[allow(dead_code)]
 pub mod evaluate;
 #[allow(dead_code)]

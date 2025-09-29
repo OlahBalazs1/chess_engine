@@ -87,7 +87,7 @@ impl Bitboards {
     }
 }
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Debug)]
 pub struct BoardRepr {
     pub board: [Option<Piece>; 64],
 }
@@ -130,7 +130,7 @@ impl BoardRepr {
                 }
             }
         }
-        panic!("No king found")
+        panic!("No king found: {:?}", self)
     }
 }
 
