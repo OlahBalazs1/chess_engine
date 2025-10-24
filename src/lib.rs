@@ -13,7 +13,6 @@ mod position;
 mod search;
 mod search_data;
 mod search_masks;
-mod uci;
 mod util;
 mod zobrist;
 
