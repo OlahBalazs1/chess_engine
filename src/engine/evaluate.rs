@@ -104,6 +104,7 @@ fn rate_move(mov: &Move) -> i64 {
     }
 }
 
+#[repr(u8)]
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Outcome {
     Ongoing,

@@ -29,6 +29,15 @@ impl PieceType {
 use PieceType::*;
 use Side::*;
 
+#[cfg(feature = "ffi")]
+#[repr(C)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+pub struct Piece {
+    pub side: Side,
+    pub piece_type: PieceType,
+}
+
+#[cfg(not(feature = "ffi"))]
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Piece {
     pub side: Side,

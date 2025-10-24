@@ -8,6 +8,7 @@ name = "chess_engine"
 crate-type= ["dylib"]
 
 [features]
+default = ["ffi"]
 ffi = []
 
 

@@ -3,6 +3,17 @@ use crate::piece::{Piece, PieceType};
 use crate::position::Position;
 use std::fmt::{Debug, Display};
 
+#[cfg(not(feature = "ffi"))]
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
+pub enum MoveType {
+    Normal(PieceType),
+    Promotion(PieceType),
+    LongCastle,
+    ShortCastle,
+    EnPassant,
+}
+#[cfg(feature = "ffi")]
+#[repr(C)]
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
 pub enum MoveType {
     Normal(PieceType),

@@ -1,3 +1,4 @@
+use core::panic;
 use std::{
     collections::HashMap,
     io::{Write, stdin, stdout},
@@ -7,8 +8,12 @@ use nohash_hasher::BuildNoHashHasher;
 
 use crate::{
     board::SearchBoard,
-    engine::minimax::minimax,
-    engine::{add_board_to_repetition, evaluate::outcome, is_draw_repetition},
+    engine::{
+        add_board_to_repetition,
+        evaluate::{Outcome, outcome},
+        is_draw_repetition,
+        minimax::minimax,
+    },
     moving::Move,
     piece::Side,
 };
@@ -78,4 +83,61 @@ pub fn autoplay(depth: i32, mut board: SearchBoard) {
         }
     }
     println!("{}", board.state);
+}
+
+pub struct Game {
+    board: SearchBoard,
+    repetitions: HashMap<u64, u8, BuildNoHashHasher<u64>>,
+    last_move_outcome: Outcome,
+}
+
+impl Game {
+    pub fn get_board(&self) -> &SearchBoard {
+        &self.board
+    }
+    pub fn make_move(&mut self, mov: &Move) -> Option<Outcome> {
+        if self.last_move_outcome.is_game_over() {
+            return Some(self.last_move_outcome);
+        }
+        let (pin_state, check_paths) = self.board.legal_data();
+        let legal_moves = self.board.find_all_moves(pin_state, check_paths);
+
+        if legal_moves.contains(mov) {
+            self.board.make(&mov);
+            add_board_to_repetition(&mut self.repetitions, &self.board);
+
+            let (pin_state, check_path) = self.board.legal_data();
+            let is_check = check_path.is_check();
+            let moves = self.board.find_all_moves(pin_state, check_path);
+
+            let outcome = outcome(&self.board, &moves, is_check, &self.repetitions);
+            self.last_move_outcome = outcome;
+            Some(outcome)
+        } else {
+            None
+        }
+    }
+
+    pub fn find_best_move(&self, depth: i32) -> Option<Move> {
+        if self.last_move_outcome.is_game_over() {
+            return None;
+        }
+        minimax(self.board.clone(), depth, &self.repetitions)
+            .get(0)
+            .copied()
+    }
+
+    pub fn outcome(&self) -> Outcome {
+        self.last_move_outcome
+    }
+}
+
+impl Default for Game {
+    fn default() -> Self {
+        Self {
+            board: SearchBoard::default(),
+            repetitions: HashMap::with_hasher(BuildNoHashHasher::new()),
+            last_move_outcome: Outcome::Ongoing,
+        }
+    }
 }

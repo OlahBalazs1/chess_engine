@@ -17,6 +17,9 @@ mod uci;
 mod util;
 mod zobrist;
 
+#[cfg(feature = "ffi")]
+mod ffi;
+
 use crate::board::SearchBoard;
 use crate::engine::play::autoplay;
 use crate::perft::KIWIPETE_TARGETS;
