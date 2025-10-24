@@ -12,7 +12,7 @@ use crate::{
         is_draw_repetition, who2move,
     },
     moving::{Move, MoveType},
-    piece::{self, Piece, PieceType, Side},
+    piece::{Piece, PieceType, Side},
     position::Position,
 };
 use PieceType::*;

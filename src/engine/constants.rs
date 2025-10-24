@@ -1,7 +1,5 @@
-use std::ops::Mul;
 
-use crate::piece::{Piece, PieceType, Side};
-use PieceType::*;
+use crate::piece::PieceType;
 
 pub const PAWN_VALUE: i64 = 1;
 pub const KNIGHT_VALUE: i64 = 3;

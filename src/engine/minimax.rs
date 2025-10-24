@@ -1,9 +1,6 @@
 use std::{collections::HashMap, iter, ops::Deref};
 
-use crate::{
-    board,
-    engine::{self, RepetitionHashmap, add_board_to_repetition},
-};
+use crate::engine::{self, RepetitionHashmap, add_board_to_repetition};
 use nohash_hasher::BuildNoHashHasher;
 use rayon::prelude::*;
 

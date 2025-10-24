@@ -19,10 +19,6 @@ mod zobrist;
 #[cfg(feature = "ffi")]
 mod ffi;
 
-use crate::board::SearchBoard;
-use crate::engine::play::autoplay;
-use crate::perft::KIWIPETE_TARGETS;
-use crate::piece::Side;
 pub use crate::util::pseudo_moving;
 
 fn main() {

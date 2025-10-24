@@ -9,7 +9,7 @@ use crate::{
     magic_bitboards::{MAGIC_MOVER, MagicMover},
     moving::{Move, MoveType},
     piece::{PieceType, Side},
-    position::{Offset, Position},
+    position::Position,
 };
 use PieceType::*;
 

@@ -1,16 +1,12 @@
 use std::{
     ffi::{CStr, c_char},
-    iter,
-    ops::Deref,
     slice,
 };
 
 use crate::{
-    board::{self, BoardState, SearchBoard},
+    board::SearchBoard,
     engine::{evaluate::Outcome, play::Game},
     ffi::struct_reprs::{FFIMove, SimplePieceRepr},
-    moving::MoveType,
-    piece::{Piece, PieceType, Side},
 };
 
 mod struct_reprs;
