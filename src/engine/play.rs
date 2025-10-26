@@ -10,9 +10,8 @@ use crate::{
     engine::{
         add_board_to_repetition,
         evaluate::{Outcome, outcome, rate_move},
-        incremental_rating::IncrementalRating,
         is_draw_repetition,
-        minimax::minimax,
+        minimax::{minimax, minimax_single_threaded},
     },
     moving::Move,
     piece::Side,
@@ -30,7 +29,7 @@ pub fn play(depth: i32, mut board: SearchBoard, player_side: Side) {
             };
             println!("{}", chosen_move);
             let rating = rate_move(&chosen_move, board.side());
-            board.make(&chosen_move, &rating);
+            board.make(&chosen_move, rating);
             continue;
         }
         if is_draw_repetition(&board, &repetitions) {
@@ -50,7 +49,7 @@ pub fn play(depth: i32, mut board: SearchBoard, player_side: Side) {
             };
             if legal_moves.contains(&player_move) {
                 let rating = rate_move(&player_move, board.side());
-                board.make(&player_move, &rating);
+                board.make(&player_move, rating);
                 break;
             }
         }
@@ -79,7 +78,34 @@ pub fn autoplay(depth: i32, mut board: SearchBoard) {
         };
         println!("{}", chosen_move);
         let rating = rate_move(&chosen_move, board.side());
-        board.make(&chosen_move, &rating);
+        board.make(&chosen_move, rating);
+        add_board_to_repetition(&mut repetition, &board);
+
+        let (pin_state, check_path) = board.legal_data();
+        let is_check = check_path.is_check();
+        let moves = board.find_all_moves(pin_state, check_path);
+
+        let outcome = outcome(&board, !moves.is_empty(), is_check, &repetition);
+        if outcome.is_game_over() {
+            println!("{:?}", outcome);
+            break;
+        }
+    }
+    println!("{}", board.state);
+}
+pub fn autoplay_single_threaded(depth: i32, mut board: SearchBoard) {
+    let mut repetition = HashMap::with_hasher(BuildNoHashHasher::new());
+    loop {
+        println!("{}", board.state);
+        let Some(chosen_move) = minimax_single_threaded(board.clone(), depth, &repetition)
+            .get(0)
+            .copied()
+        else {
+            break;
+        };
+        println!("{}", chosen_move);
+        let rating = rate_move(&chosen_move, board.side());
+        board.make(&chosen_move, rating);
         add_board_to_repetition(&mut repetition, &board);
 
         let (pin_state, check_path) = board.legal_data();
@@ -114,7 +140,7 @@ impl Game {
         let rating = rate_move(mov, self.board.side());
 
         if legal_moves.contains(mov) {
-            self.board.make(&mov, &rating);
+            self.board.make(&mov, rating);
             add_board_to_repetition(&mut self.repetitions, &self.board);
 
             let (pin_state, check_path) = self.board.legal_data();

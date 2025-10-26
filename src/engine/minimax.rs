@@ -2,6 +2,7 @@ use std::{collections::HashMap, iter, ops::Deref};
 
 use crate::engine::{self, RepetitionHashmap, add_board_to_repetition};
 use nohash_hasher::BuildNoHashHasher;
+use owo_colors::OwoColorize;
 use rayon::prelude::*;
 
 use crate::{
@@ -18,22 +19,90 @@ pub fn minimax(board: SearchBoard, depth: i32, repetitions: &RepetitionHashmap) 
     let (pin_state, check_paths) = board.legal_data();
     // let is_check = check_paths.is_check();
     let moves = board.find_all_moves(pin_state, check_paths);
-    let mut rated_moves = moves
+    let rated_moves = moves
         .into_iter()
         .map(|i| (i, rate_move(&i, board.side())))
         .collect::<Vec<_>>();
-    rated_moves.sort_by_key(|(_, rating)| -rating.sum());
     let evals = rated_moves
-        .par_iter()
+        .iter()
         .map(|(mov, rating)| {
             let mut board_copy = board.clone();
             let mut repetition_copy = repetitions.clone();
-            board_copy.make(&mov, rating);
+            board_copy.make(&mov, *rating);
             add_board_to_repetition(&mut repetition_copy, &board_copy);
             minimax_eval(&mut board_copy, depth, &repetition_copy, i64::MIN, i64::MAX)
         })
         .map(|i| i.unwrap())
         .collect::<Vec<_>>();
+
+    filter_best(
+        rated_moves.into_iter().map(|(mov, _)| mov),
+        &evals,
+        board.side(),
+    )
+}
+
+pub fn minimax_single_threaded(
+    board: SearchBoard,
+    depth: i32,
+    repetitions: &RepetitionHashmap,
+) -> MinimaxResult {
+    if depth == 0 {
+        panic!("Don't call minimax() with a depth of 0")
+    }
+
+    let (pin_state, check_paths) = board.legal_data();
+    let moves = board.find_all_moves(pin_state, check_paths);
+    let mut rated_moves = moves
+        .into_iter()
+        .map(|i| (i, rate_move(&i, board.side())))
+        .collect::<Vec<_>>();
+    if board.side() == Side::White {
+        rated_moves.sort_by_key(|(_, rating)| -rating);
+    } else {
+        rated_moves.sort_by_key(|(_, rating)| *rating);
+    }
+
+    let mut alpha = i64::MIN;
+    let mut beta = i64::MAX;
+    let mut best = if board.side() == Side::White {
+        i64::MIN
+    } else {
+        i64::MAX
+    };
+
+    let mut evals = Vec::with_capacity(rated_moves.len());
+    for (mov, rating) in rated_moves.iter() {
+        let mut board_copy = board.clone();
+        let mut repetition_copy = repetitions.clone();
+        board_copy.make(&mov, *rating);
+        add_board_to_repetition(&mut repetition_copy, &board_copy);
+        let score = minimax_eval(&mut board_copy, depth, &repetition_copy, alpha, beta).unwrap();
+
+        if board.side() == Side::White {
+            if score > best {
+                best = score;
+                if score > alpha {
+                    alpha = score
+                }
+            }
+            if score >= beta {
+                break;
+            }
+        } else {
+            if score < best {
+                best = score;
+                if score < beta {
+                    beta = score
+                }
+            }
+            if score <= alpha {
+                break;
+            }
+        }
+
+        evals.push(score);
+    }
 
     filter_best(
         rated_moves.into_iter().map(|(mov, _)| mov),
@@ -61,15 +130,16 @@ fn minimax_eval(
         .collect::<Vec<_>>();
     let are_there_moves = !rated_moves.is_empty();
     // sort_by_key() sorts in ascending order -> rate move needs to be negated
-    rated_moves.sort_by_key(|(_, rating)| rating.sum());
+    rated_moves.sort_by_key(|(_, rating)| -rating);
     // board.side() = player
     // For black, a large negative number is a good evaluation
-    // For white, it's positive
+    // For white, a positive large number is good
     let mut best = if board.side() == Side::White {
         i64::MIN
     } else {
         i64::MAX
     };
+    let mut cut = false;
     for (mov, rating) in rated_moves.iter() {
         if let Some(PieceType::King) = mov.take.map(|i| i.piece_type) {
             println!(
@@ -85,7 +155,7 @@ fn minimax_eval(
             repetition_copy = HashMap::with_hasher(BuildNoHashHasher::new());
         }
         let unmake = Unmove::new(mov, &board);
-        board.make(mov, rating);
+        board.make(mov, *rating);
 
         add_board_to_repetition(&mut repetition_copy, board);
         let Some(score) = minimax_eval(board, depth - 1, &repetition_copy, alpha, beta) else {
@@ -96,7 +166,7 @@ fn minimax_eval(
             return None;
         };
         // here board.side == enemy
-        board.unmake(unmake, rating);
+        board.unmake(unmake, *rating);
         // after unmake, it's the player
         if board.side() == Side::White {
             if score > best {
@@ -105,10 +175,9 @@ fn minimax_eval(
                     alpha = score
                 }
             }
-            if best >= beta {
+            if score >= beta {
                 break;
             }
-            alpha = alpha.max(best)
         } else {
             if score < best {
                 best = score;
@@ -116,10 +185,9 @@ fn minimax_eval(
                     beta = score
                 }
             }
-            if best <= alpha {
+            if score <= alpha {
                 break;
             }
-            beta = beta.min(best)
         }
     }
     let outcome = outcome(board, are_there_moves, is_check, repetitions);

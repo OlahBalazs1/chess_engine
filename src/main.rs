@@ -20,7 +20,11 @@ pub mod zobrist;
 pub mod ffi;
 
 pub use crate::util::pseudo_moving;
+use crate::{
+    board::SearchBoard,
+    engine::play::{autoplay, autoplay_single_threaded},
+};
 
 fn main() {
-    perft::test_unmake::<6>();
+    autoplay_single_threaded(6, SearchBoard::default());
 }

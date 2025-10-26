@@ -7,7 +7,6 @@ use crate::{board::SearchBoard, piece::Side};
 pub mod constants;
 #[allow(dead_code)]
 pub mod evaluate;
-pub mod incremental_rating;
 #[allow(dead_code)]
 pub mod minimax;
 #[allow(dead_code)]

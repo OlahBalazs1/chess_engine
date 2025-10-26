@@ -1,6 +1,5 @@
 use crate::{
     board::SearchBoard,
-    engine::incremental_rating::IncrementalRating,
     magic_bitboards::init_magic_mover,
     moving::{Move, Unmove},
     perft_data::PerftData,
@@ -61,7 +60,7 @@ fn perft_search<const N: usize>(
         results[N - depth].add_normal(mov);
         let unmove = Unmove::new(&mov, board);
         // let board_copy = board.clone();
-        board.make(&mov, &IncrementalRating::default());
+        board.make(&mov, 0);
 
         // let attacked = board.state.get_attacked(board.side().opposite());
         // let (pin_state, check) = board.state.legal_data();
@@ -75,7 +74,7 @@ fn perft_search<const N: usize>(
         // }
 
         perft_search(board, results, depth - 1);
-        board.unmake(unmove, &IncrementalRating::default());
+        board.unmake(unmove, 0);
 
         // if *board != board_copy {
         //     panic!(
@@ -109,7 +108,7 @@ fn perft_search_copy<const N: usize>(
     let moves = board.find_all_moves(pin, check);
     for mov in moves {
         let mut board_clone = board.clone();
-        board_clone.make(&mov, &IncrementalRating::default());
+        board_clone.make(&mov, 0);
 
         // logging stuff
         // let attacked = board_clone
@@ -150,7 +149,7 @@ fn pseudo_perft_copy<const N: usize>(
         {
             continue;
         }
-        board_copy.make(&mov, &IncrementalRating::default());
+        board_copy.make(&mov, 0);
 
         // is king in check after its side's move
         // if yes -> move was illegal
@@ -357,7 +356,7 @@ fn filter_moves_and<F: FnMut(&Move) -> ()>(board: &SearchBoard, moves: &[Move], 
         {
             continue;
         }
-        board_copy.make(mov, &IncrementalRating::default());
+        board_copy.make(mov, 0);
 
         if board_copy.is_attacked(board_copy.side_king(board_copy.side().opposite())) {
             continue;

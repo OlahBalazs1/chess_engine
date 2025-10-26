@@ -6,10 +6,9 @@ use crate::{
         RepetitionHashmap,
         constants::{
             BISHOP_POSITIONAL, BISHOP_VALUE, KING_POSITIONAL, KING_VALUE, KNIGHT_POSITIONAL,
-            KNIGHT_VALUE, PAWN_POSITIONAL, PAWN_VALUE, QUEEN_POSITIONAL, QUEEN_VALUE,
-            ROOK_POSITIONAL, ROOK_VALUE,
+            KNIGHT_VALUE, MATERIAL_WEIGHT, PAWN_POSITIONAL, PAWN_VALUE, QUEEN_POSITIONAL,
+            QUEEN_VALUE, ROOK_POSITIONAL, ROOK_VALUE,
         },
-        incremental_rating::IncrementalRating,
         is_draw_repetition, who2move,
     },
     moving::{Move, MoveType},
@@ -32,14 +31,7 @@ pub fn evaluate(board: &SearchBoard, repetitions: &RepetitionHashmap) -> i64 {
 }
 
 pub fn eval_score(board: &SearchBoard) -> i64 {
-    let mut eval = 0;
-    for pos in (0..64).map(Position::from_index) {
-        if let Some(piece) = board.board.board[*pos as usize] {
-            eval += get_material(piece) * 100;
-            eval += get_positional(piece, pos)
-        }
-    }
-    eval
+    board.incremental_rating
 }
 
 pub fn side_dependent_eval(board: &SearchBoard, is_check: bool, moves: &[Move]) -> i64 {
@@ -98,32 +90,23 @@ pub(crate) fn get_positional(piece: Piece, pos: Position) -> i64 {
     }[*lookup_pos as usize])
         .mul(if Side::White == piece.side() { 1 } else { -1 })
 }
-pub(crate) fn rate_move(mov: &Move, who_to_move: Side) -> IncrementalRating {
-    let mut eval = IncrementalRating::default();
+pub(crate) fn rate_move(mov: &Move, who_to_move: Side) -> i64 {
+    let mut eval = 0;
 
     let piece = mov.piece_type().with_side(who_to_move);
-    eval.set_positional(who_to_move, -(get_positional(piece, mov.from)));
-    match mov.move_type {
-        MoveType::Promotion(promoted_to) => {
-            eval.set_material(
-                who_to_move,
-                get_material(promoted_to.with_side(who_to_move)),
-            );
-            eval.set_positional(
-                who_to_move,
-                eval.positional(who_to_move)
-                    + get_positional(promoted_to.with_side(who_to_move), mov.to),
-            );
-        }
-        _ => eval.set_positional(
-            who_to_move,
-            eval.positional(who_to_move) + get_positional(piece, mov.to),
-        ),
-    }
+    // accounts for color
+    // good for black -> negative
+    // good for white -> positive
+    eval -= get_positional(piece, mov.from);
+    eval += get_positional(piece, mov.to);
 
+    // good for white -> get_material() returns negative value
+    // good for black -> get_material() returns positive value
+    // this is backwards from how it should be
+    // so it's negated from the score, not added
     if let Some(taken) = mov.take {
-        eval.set_material(who_to_move.opposite(), -get_material(taken));
-        eval.set_positional(who_to_move.opposite(), -get_positional(taken, mov.to));
+        eval -= get_material(taken) * MATERIAL_WEIGHT;
+        eval -= get_positional(piece, mov.to);
     }
 
     eval

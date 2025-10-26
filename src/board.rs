@@ -4,7 +4,6 @@ use std::mem;
 use std::ops::{Add, Deref, DerefMut};
 
 use crate::board_repr::*;
-use crate::engine::incremental_rating::IncrementalRating;
 use crate::magic_bitboards::MAGIC_MOVER;
 use crate::moving::{Move, MoveType, Unmove};
 use crate::piece::{Piece, PieceType, Side};
@@ -19,7 +18,7 @@ use PieceType::*;
 pub struct SearchBoard {
     pub state: BoardState,
     pub halfmove_clock: u8,
-    pub incremental_rating: IncrementalRating,
+    pub incremental_rating: i64,
 }
 macro_rules! allies {
     ($side: ident, $state: ident) => {
@@ -77,7 +76,7 @@ impl SearchBoard {
         moves
     }
 
-    pub fn make<'a>(&mut self, mov: &'a Move, rating: &IncrementalRating) {
+    pub fn make<'a>(&mut self, mov: &'a Move, rating: i64) {
         let ally_side = self.state.side;
         let enemy_side = ally_side.opposite();
 
@@ -189,12 +188,12 @@ impl SearchBoard {
             }
         }
 
-        self.incremental_rating.add_mut(rating);
+        self.incremental_rating += rating;
 
         self.state.side = self.state.side.opposite();
     }
 
-    pub fn unmake(&mut self, unmove: Unmove, rating: &IncrementalRating) {
+    pub fn unmake(&mut self, unmove: Unmove, rating: i64) {
         self.state.side = self.state.side.opposite();
         let ally_side = self.state.side;
         let mov = unmove.mov;
@@ -246,7 +245,7 @@ impl SearchBoard {
         if piece == PieceType::King {
             *self.side_king_mut(ally_side) = mov.from;
         }
-        self.incremental_rating.sub_mut(rating);
+        self.incremental_rating -= rating;
 
         self.state.en_passant_square = unmove.en_passant_square;
         self.state.white_castling = unmove.white_castling;
@@ -266,7 +265,7 @@ impl SearchBoard {
         Self {
             halfmove_clock,
             state,
-            incremental_rating: IncrementalRating::default(),
+            incremental_rating: 0,
         }
     }
 }
@@ -288,7 +287,7 @@ impl Default for SearchBoard {
         Self {
             state: BoardState::default(),
             halfmove_clock: 0,
-            incremental_rating: IncrementalRating::default(),
+            incremental_rating: 0,
         }
     }
 }
