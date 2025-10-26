@@ -3,14 +3,9 @@ name = "chess_engine"
 version = "0.1.0"
 edition = "2024"
 
-[lib]
-name = "chess_engine"
-crate-type= ["dylib"]
-
 [features]
 default = ["ffi"]
 ffi = []
-
 
 [dependencies]
 array-init = "2.1.0"

@@ -1,4 +1,4 @@
-use std::ops::Mul;
+use std::ops::{Add, Mul};
 
 use crate::{
     board::SearchBoard,
@@ -9,6 +9,7 @@ use crate::{
             KNIGHT_VALUE, PAWN_POSITIONAL, PAWN_VALUE, QUEEN_POSITIONAL, QUEEN_VALUE,
             ROOK_POSITIONAL, ROOK_VALUE,
         },
+        incremental_rating::IncrementalRating,
         is_draw_repetition, who2move,
     },
     moving::{Move, MoveType},
@@ -22,7 +23,7 @@ pub fn evaluate(board: &SearchBoard, repetitions: &RepetitionHashmap) -> i64 {
     let is_check = check_paths.is_check();
     let moves = board.find_all_moves(pin_state, check_paths.clone());
 
-    match outcome(board, &moves, is_check, repetitions) {
+    match outcome(board, !moves.is_empty(), is_check, repetitions) {
         Outcome::Ongoing => eval_score(board) + side_dependent_eval(board, is_check, &moves),
         Outcome::WhiteWon => i64::MAX,
         Outcome::BlackWon => i64::MIN,
@@ -34,7 +35,7 @@ pub fn eval_score(board: &SearchBoard) -> i64 {
     let mut eval = 0;
     for pos in (0..64).map(Position::from_index) {
         if let Some(piece) = board.board.board[*pos as usize] {
-            eval += get_material(piece);
+            eval += get_material(piece) * 100;
             eval += get_positional(piece, pos)
         }
     }
@@ -45,7 +46,7 @@ pub fn side_dependent_eval(board: &SearchBoard, is_check: bool, moves: &[Move]) 
     let mut eval = 0;
     eval += moves.len().isqrt() as i64;
     if is_check {
-        eval -= 10
+        eval -= 10;
     }
 
     eval * who2move(board.side()) as i64
@@ -53,14 +54,14 @@ pub fn side_dependent_eval(board: &SearchBoard, is_check: bool, moves: &[Move]) 
 
 pub fn outcome(
     board: &SearchBoard,
-    moves: &[Move],
+    are_there_moves: bool,
     is_check: bool,
     repetitions: &RepetitionHashmap,
 ) -> Outcome {
     if is_draw_repetition(board, repetitions) {
         return Outcome::Stalemate;
     }
-    if !moves.is_empty() {
+    if are_there_moves {
         return Outcome::Ongoing;
     }
     if is_check {
@@ -73,7 +74,7 @@ pub fn outcome(
     }
 }
 
-fn get_material(piece: Piece) -> i64 {
+pub(crate) fn get_material(piece: Piece) -> i64 {
     match piece.role() {
         Pawn => PAWN_VALUE,
         Rook => ROOK_VALUE,
@@ -85,7 +86,8 @@ fn get_material(piece: Piece) -> i64 {
     .mul(if Side::White == piece.side() { 1 } else { -1 })
 }
 
-fn get_positional(piece: Piece, pos: Position) -> i64 {
+pub(crate) fn get_positional(piece: Piece, pos: Position) -> i64 {
+    let lookup_pos = pos.with_y(piece.side().pers_y(pos.y())).unwrap();
     (match piece.role() {
         Pawn => PAWN_POSITIONAL,
         Rook => ROOK_POSITIONAL,
@@ -93,15 +95,38 @@ fn get_positional(piece: Piece, pos: Position) -> i64 {
         Bishop => BISHOP_POSITIONAL,
         Queen => QUEEN_POSITIONAL,
         King => KING_POSITIONAL,
-    }[*pos as usize])
+    }[*lookup_pos as usize])
         .mul(if Side::White == piece.side() { 1 } else { -1 })
 }
-fn rate_move(mov: &Move) -> i64 {
+pub(crate) fn rate_move(mov: &Move, who_to_move: Side) -> IncrementalRating {
+    let mut eval = IncrementalRating::default();
+
+    let piece = mov.piece_type().with_side(who_to_move);
+    eval.set_positional(who_to_move, -(get_positional(piece, mov.from)));
     match mov.move_type {
-        // en passant is clearly the best
-        MoveType::EnPassant => i64::MAX,
-        _ => i64::MIN,
+        MoveType::Promotion(promoted_to) => {
+            eval.set_material(
+                who_to_move,
+                get_material(promoted_to.with_side(who_to_move)),
+            );
+            eval.set_positional(
+                who_to_move,
+                eval.positional(who_to_move)
+                    + get_positional(promoted_to.with_side(who_to_move), mov.to),
+            );
+        }
+        _ => eval.set_positional(
+            who_to_move,
+            eval.positional(who_to_move) + get_positional(piece, mov.to),
+        ),
     }
+
+    if let Some(taken) = mov.take {
+        eval.set_material(who_to_move.opposite(), -get_material(taken));
+        eval.set_positional(who_to_move.opposite(), -get_positional(taken, mov.to));
+    }
+
+    eval
 }
 
 #[repr(u8)]

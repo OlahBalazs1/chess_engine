@@ -5,7 +5,7 @@ use crate::{
 };
 #[repr(u8)]
 #[derive(Clone, Copy)]
-pub(crate) enum SimplePieceRepr {
+pub enum SimplePieceRepr {
     Nothing = 0,
 
     WhitePawn = 0b1,

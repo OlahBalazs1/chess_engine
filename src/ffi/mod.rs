@@ -1,5 +1,6 @@
 use std::{
     ffi::{CStr, c_char},
+    ptr::null_mut,
     slice,
 };
 
@@ -7,6 +8,7 @@ use crate::{
     board::SearchBoard,
     engine::{evaluate::Outcome, play::Game},
     ffi::struct_reprs::{FFIMove, SimplePieceRepr},
+    position::Position,
 };
 
 mod struct_reprs;
@@ -33,7 +35,7 @@ pub extern "C" fn sb_new_from_fen(fen: *const c_char) -> *mut SearchBoard {
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn sb_get_piecewise_board(
+pub unsafe extern "C" fn sb_piecewise_board(
     board: Option<&SearchBoard>,
     arr: *mut SimplePieceRepr,
 ) {
@@ -49,13 +51,17 @@ pub unsafe extern "C" fn sb_get_piecewise_board(
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn sb_find_all_moves(board: Option<&SearchBoard>, moves: *mut FFIMove) -> i32 {
+pub extern "C" fn sb_find_all_moves(
+    board: Option<&SearchBoard>,
+    moves: *mut FFIMove,
+    moves_len: usize,
+) -> i32 {
     let mut written = 0;
     let board = board.expect("Board should not be null");
     let (pin_state, check_paths) = board.legal_data();
     let found_moves = board.find_all_moves(pin_state, check_paths);
     unsafe {
-        let moves = slice::from_raw_parts_mut(moves, 218);
+        let moves = slice::from_raw_parts_mut(moves, moves_len);
 
         for (mov, entry) in std::iter::zip(found_moves.iter(), moves.iter_mut()) {
             written += 1;
@@ -64,6 +70,20 @@ pub extern "C" fn sb_find_all_moves(board: Option<&SearchBoard>, moves: *mut FFI
     }
 
     written
+}
+
+pub extern "C" fn sb_en_passant_square(
+    board: Option<&SearchBoard>,
+    out: Option<&mut Position>,
+) -> bool {
+    let board = board.expect("Board should not be null");
+    let out = out.expect("Out should not be null");
+
+    let Some(ep) = board.en_passant_square else {
+        return false;
+    };
+    *out = ep;
+    true
 }
 
 #[unsafe(no_mangle)]
@@ -93,8 +113,13 @@ pub extern "C" fn gm_play_move(game: Option<&mut Game>, mov: Option<&FFIMove>) -
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn gm_get_searchboard(game: Option<&Game>) -> Option<&SearchBoard> {
-    game.map(|i| i.get_board())
+pub extern "C" fn gm_searchboard(game: Option<&Game>) -> *mut SearchBoard {
+    let Some(game) = game else {
+        return null_mut();
+    };
+
+    let board = game.get_board().clone();
+    Box::into_raw(Box::new(board))
 }
 
 #[unsafe(no_mangle)]

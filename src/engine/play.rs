@@ -9,7 +9,8 @@ use crate::{
     board::SearchBoard,
     engine::{
         add_board_to_repetition,
-        evaluate::{Outcome, outcome},
+        evaluate::{Outcome, outcome, rate_move},
+        incremental_rating::IncrementalRating,
         is_draw_repetition,
         minimax::minimax,
     },
@@ -28,7 +29,8 @@ pub fn play(depth: i32, mut board: SearchBoard, player_side: Side) {
                 break;
             };
             println!("{}", chosen_move);
-            board.make(&chosen_move);
+            let rating = rate_move(&chosen_move, board.side());
+            board.make(&chosen_move, &rating);
             continue;
         }
         if is_draw_repetition(&board, &repetitions) {
@@ -47,13 +49,21 @@ pub fn play(depth: i32, mut board: SearchBoard, player_side: Side) {
                 continue;
             };
             if legal_moves.contains(&player_move) {
-                board.make(&player_move);
+                let rating = rate_move(&player_move, board.side());
+                board.make(&player_move, &rating);
                 break;
             }
         }
         let (pin_state, check_paths) = board.legal_data();
         let legal_moves = board.find_all_moves(pin_state, check_paths.clone());
-        if outcome(&board, &legal_moves, check_paths.is_check(), &repetitions).is_game_over() {
+        if outcome(
+            &board,
+            !legal_moves.is_empty(),
+            check_paths.is_check(),
+            &repetitions,
+        )
+        .is_game_over()
+        {
             break;
         }
         add_board_to_repetition(&mut repetitions, &board);
@@ -68,14 +78,15 @@ pub fn autoplay(depth: i32, mut board: SearchBoard) {
             break;
         };
         println!("{}", chosen_move);
-        board.make(&chosen_move);
+        let rating = rate_move(&chosen_move, board.side());
+        board.make(&chosen_move, &rating);
         add_board_to_repetition(&mut repetition, &board);
 
         let (pin_state, check_path) = board.legal_data();
         let is_check = check_path.is_check();
         let moves = board.find_all_moves(pin_state, check_path);
 
-        let outcome = outcome(&board, &moves, is_check, &repetition);
+        let outcome = outcome(&board, !moves.is_empty(), is_check, &repetition);
         if outcome.is_game_over() {
             println!("{:?}", outcome);
             break;
@@ -100,16 +111,17 @@ impl Game {
         }
         let (pin_state, check_paths) = self.board.legal_data();
         let legal_moves = self.board.find_all_moves(pin_state, check_paths);
+        let rating = rate_move(mov, self.board.side());
 
         if legal_moves.contains(mov) {
-            self.board.make(&mov);
+            self.board.make(&mov, &rating);
             add_board_to_repetition(&mut self.repetitions, &self.board);
 
             let (pin_state, check_path) = self.board.legal_data();
             let is_check = check_path.is_check();
             let moves = self.board.find_all_moves(pin_state, check_path);
 
-            let outcome = outcome(&self.board, &moves, is_check, &self.repetitions);
+            let outcome = outcome(&self.board, !moves.is_empty(), is_check, &self.repetitions);
             self.last_move_outcome = outcome;
             Some(outcome)
         } else {

@@ -124,14 +124,14 @@ fn find_pawn_unrestricted(
             }
         },
         // a3 - g6
-        (16..48, Side::White) => unsafe {
+        (16..56, Side::White) => unsafe {
             let to = pos.add_y(1).unwrap_unchecked();
             if all_pieces & to.as_mask() == 0 {
                 gen_pawn_moves(moves, pos, to, None);
             }
         },
         // a3 - g6
-        (16..48, Side::Black) => unsafe {
+        (8..48, Side::Black) => unsafe {
             let to = pos.sub_y(1).unwrap_unchecked();
             if all_pieces & to.as_mask() == 0 {
                 gen_pawn_moves(moves, pos, to, None);
@@ -210,21 +210,22 @@ fn find_pawn_restricted(
             }
         },
         // a3 - g6
-        (16..48, Side::White) => unsafe {
+        (16..56, Side::White) => unsafe {
             let to = pos.add_y(1).unwrap_unchecked();
             if all_pieces & to.as_mask() == 0 && must_block & to.as_mask() != 0 {
                 gen_pawn_moves(moves, pos, to, None);
             }
         },
         // a3 - g6
-        (16..48, Side::Black) => unsafe {
+        (8..48, Side::Black) => unsafe {
             let to = pos.sub_y(1).unwrap_unchecked();
             if all_pieces & to.as_mask() == 0 && must_block & to.as_mask() != 0 {
                 gen_pawn_moves(moves, pos, to, None);
             }
         },
         (i, _) => panic!(
-            "Pawn in illegal position: {}: {}",
+            "{:?} Pawn in illegal position: {}: {}",
+            side,
             Position::from_index(i),
             i
         ),

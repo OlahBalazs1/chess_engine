@@ -18,19 +18,28 @@ pub fn minimax(board: SearchBoard, depth: i32, repetitions: &RepetitionHashmap) 
     let (pin_state, check_paths) = board.legal_data();
     // let is_check = check_paths.is_check();
     let moves = board.find_all_moves(pin_state, check_paths);
-    let evals = moves
+    let mut rated_moves = moves
+        .into_iter()
+        .map(|i| (i, rate_move(&i, board.side())))
+        .collect::<Vec<_>>();
+    rated_moves.sort_by_key(|(_, rating)| -rating.sum());
+    let evals = rated_moves
         .par_iter()
-        .map(|mov| {
+        .map(|(mov, rating)| {
             let mut board_copy = board.clone();
             let mut repetition_copy = repetitions.clone();
-            board_copy.make(&mov);
+            board_copy.make(&mov, rating);
             add_board_to_repetition(&mut repetition_copy, &board_copy);
             minimax_eval(&mut board_copy, depth, &repetition_copy, i64::MIN, i64::MAX)
         })
         .map(|i| i.unwrap())
         .collect::<Vec<_>>();
 
-    filter_best(&moves, &evals, board.side())
+    filter_best(
+        rated_moves.into_iter().map(|(mov, _)| mov),
+        &evals,
+        board.side(),
+    )
 }
 
 fn minimax_eval(
@@ -46,6 +55,13 @@ fn minimax_eval(
     let (pin_state, check_paths) = board.legal_data();
     let is_check = check_paths.is_check();
     let moves = board.find_all_moves(pin_state, check_paths);
+    let mut rated_moves = moves
+        .into_iter()
+        .map(|i| (i, rate_move(&i, board.side())))
+        .collect::<Vec<_>>();
+    let are_there_moves = !rated_moves.is_empty();
+    // sort_by_key() sorts in ascending order -> rate move needs to be negated
+    rated_moves.sort_by_key(|(_, rating)| rating.sum());
     // board.side() = player
     // For black, a large negative number is a good evaluation
     // For white, it's positive
@@ -54,7 +70,7 @@ fn minimax_eval(
     } else {
         i64::MAX
     };
-    for mov in moves.iter() {
+    for (mov, rating) in rated_moves.iter() {
         if let Some(PieceType::King) = mov.take.map(|i| i.piece_type) {
             println!(
                 "King taken: {} {:?}\n{:?}\n{:?}",
@@ -69,7 +85,7 @@ fn minimax_eval(
             repetition_copy = HashMap::with_hasher(BuildNoHashHasher::new());
         }
         let unmake = Unmove::new(mov, &board);
-        board.make(mov);
+        board.make(mov, rating);
 
         add_board_to_repetition(&mut repetition_copy, board);
         let Some(score) = minimax_eval(board, depth - 1, &repetition_copy, alpha, beta) else {
@@ -80,23 +96,33 @@ fn minimax_eval(
             return None;
         };
         // here board.side == enemy
-        board.unmake(unmake);
+        board.unmake(unmake, rating);
         // after unmake, it's the player
         if board.side() == Side::White {
-            best = best.max(score);
+            if score > best {
+                best = score;
+                if score > alpha {
+                    alpha = score
+                }
+            }
             if best >= beta {
                 break;
             }
             alpha = alpha.max(best)
         } else {
-            best = best.min(score);
+            if score < best {
+                best = score;
+                if score < beta {
+                    beta = score
+                }
+            }
             if best <= alpha {
                 break;
             }
             beta = beta.min(best)
         }
     }
-    let outcome = outcome(board, &moves, is_check, repetitions);
+    let outcome = outcome(board, are_there_moves, is_check, repetitions);
     match outcome {
         Outcome::Stalemate => Some(0),
         // if it's Ongoing, best is the best eval
@@ -168,13 +194,20 @@ impl PartialEq for MinimaxResult {
     }
 }
 
-fn filter_best(moves: &[Move], evals: &[i64], side: Side) -> MinimaxResult {
+fn filter_best<MovIter: Iterator<Item = Move>>(
+    moves: MovIter,
+    evals: &[i64],
+    side: Side,
+) -> MinimaxResult {
     match side {
         Side::White => filter_best_maximize(moves, evals),
         Side::Black => filter_best_minimize(moves, evals),
     }
 }
-fn filter_best_minimize(moves: &[Move], evals: &[i64]) -> MinimaxResult {
+fn filter_best_minimize<MovIter: Iterator<Item = Move>>(
+    moves: MovIter,
+    evals: &[i64],
+) -> MinimaxResult {
     let mut builder = MinimaxResultBuilder::new();
     let mut best_eval = i64::MAX;
     for (mov, eval) in iter::zip(moves, evals) {
@@ -183,12 +216,15 @@ fn filter_best_minimize(moves: &[Move], evals: &[i64]) -> MinimaxResult {
             best_eval = *eval;
         }
         if *eval == best_eval {
-            builder.add(*mov);
+            builder.add(mov);
         }
     }
     builder.finalize()
 }
-fn filter_best_maximize(moves: &[Move], evals: &[i64]) -> MinimaxResult {
+fn filter_best_maximize<MovIter: Iterator<Item = Move>>(
+    moves: MovIter,
+    evals: &[i64],
+) -> MinimaxResult {
     let mut builder = MinimaxResultBuilder::new();
     let mut best_eval = i64::MIN;
 
@@ -198,7 +234,7 @@ fn filter_best_maximize(moves: &[Move], evals: &[i64]) -> MinimaxResult {
             best_eval = *eval;
         }
         if *eval == best_eval {
-            builder.add(*mov);
+            builder.add(mov);
         }
     }
     builder.finalize()

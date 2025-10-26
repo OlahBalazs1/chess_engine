@@ -1,19 +1,9 @@
 use crate::board::{BoardState, SearchBoard};
-use crate::piece::{Piece, PieceType};
+use crate::piece::{Piece, PieceType, Side};
 use crate::position::Position;
 use std::fmt::{Debug, Display};
 
-#[cfg(not(feature = "ffi"))]
-#[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
-pub enum MoveType {
-    Normal(PieceType),
-    Promotion(PieceType),
-    LongCastle,
-    ShortCastle,
-    EnPassant,
-}
-#[cfg(feature = "ffi")]
-#[repr(C)]
+#[repr(u8)]
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
 pub enum MoveType {
     Normal(PieceType),
@@ -94,7 +84,6 @@ impl Move {
     pub fn en_passant_square(&self) -> Position {
         Position::from_index((*self.from() + *self.to()) / 2)
     }
-
     // format "from to"
     pub fn from_string(board: &BoardState, s: &str) -> Option<Self> {
         let mut data = s.split(" ");
