@@ -8,8 +8,8 @@ pub const QUEEN_VALUE: i64 = 9;
 pub const KING_VALUE: i64 = 200;
 
 pub const MATERIAL_WEIGHT: i64 = 70;
-pub const POSITIONAL_WEIGHT: i64 = 1;
-pub const MOBILITY_WEIGHT: i64 = 100;
+pub const POSITIONAL_WEIGHT: i64 = 2;
+pub const MOBILITY_WEIGHT: i64 = 50;
 
 pub const PAWN_POSITIONAL: [i64; 64] = [
     0, 0, 0, 0, 0, 0, 0, 0, 98, 134, 61, 95, 68, 126, 34, -11, -6, 7, 26, 31, 65, 56, 25, -20, -14,

@@ -77,8 +77,6 @@ pub fn minimax_single_threaded(
     };
 
     let mut evals = Vec::with_capacity(moves.len());
-    let mut beta_cutoff = false;
-    let mut exceeded_alpha = false;
     for mov in moves.iter() {
         let mut repetition_copy;
         if !is_permanent(&board, &mov) {
@@ -99,28 +97,19 @@ pub fn minimax_single_threaded(
         )
         .unwrap();
         board.unmake(unmove);
-        if score > alpha {
-            exceeded_alpha = true;
-        }
-
         if board.side() == Side::White {
             if score > best {
                 best = score;
-                if score > alpha {
-                    alpha = score
-                }
             }
+            alpha = alpha.max(score);
             if score >= beta {
-                beta_cutoff = true;
                 break;
             }
         } else {
             if score < best {
                 best = score;
-                if score < beta {
-                    beta = score
-                }
             }
+            beta = beta.min(score);
             if score <= alpha {
                 break;
             }
@@ -128,19 +117,12 @@ pub fn minimax_single_threaded(
 
         evals.push(score);
     }
-    let node_type = if beta_cutoff {
-        NodeType::Cut
-    } else if !exceeded_alpha {
-        NodeType::All
-    } else {
-        NodeType::PV
-    };
     transposition_table.insert(
         board.zobrist,
         TTableEntry {
             score: best,
             depth,
-            node_type,
+            node_type: NodeType::PV,
         },
     );
 
@@ -240,10 +222,8 @@ fn minimax_eval(
         if board.side() == Side::White {
             if score > best {
                 best = score;
-                if score > alpha {
-                    alpha = score
-                }
             }
+            alpha = alpha.max(score);
             if score >= beta {
                 beta_cutoff = true;
                 break;
@@ -251,10 +231,8 @@ fn minimax_eval(
         } else {
             if score < best {
                 best = score;
-                if score < beta {
-                    beta = score
-                }
             }
+            beta = beta.min(score);
             if score <= alpha {
                 break;
             }

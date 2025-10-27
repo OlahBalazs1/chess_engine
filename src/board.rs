@@ -1,10 +1,9 @@
 use std::fmt::{Debug, Display};
 use std::hash::Hash;
 use std::mem;
-use std::ops::{Add, Deref, DerefMut};
+use std::ops::{Deref, DerefMut};
 
 use crate::board_repr::*;
-use crate::engine::evaluate::{get_material, get_positional};
 use crate::magic_bitboards::MAGIC_MOVER;
 use crate::moving::{Move, MoveType, Unmove};
 use crate::piece::{Piece, PieceType, Side};
@@ -100,8 +99,6 @@ impl SearchBoard {
         if let Some(taken) = mov.take {
             *self.get_bitboard_mut(taken) ^= mov.to().as_mask();
             increment_halfmove = false;
-
-            // self.state.board.board[*mov.from() as usize] = None;
         }
         match mov.move_type {
             MoveType::Normal(PieceType::Pawn) if mov.is_pawn_starter() => {
@@ -281,18 +278,6 @@ impl DerefMut for SearchBoard {
 impl Default for SearchBoard {
     fn default() -> Self {
         let state = BoardState::default();
-        let mut eval = 0;
-        for (index, piece) in state
-            .board
-            .board
-            .iter()
-            .copied()
-            .enumerate()
-            .filter_map(|(index, i)| i.map(|i| (index, i)))
-        {
-            eval += get_material(piece);
-            eval += get_positional(piece, Position::from_index(index as u8))
-        }
         Self {
             state,
             halfmove_clock: 0,
