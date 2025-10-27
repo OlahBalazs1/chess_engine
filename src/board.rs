@@ -4,6 +4,7 @@ use std::mem;
 use std::ops::{Add, Deref, DerefMut};
 
 use crate::board_repr::*;
+use crate::engine::evaluate::{get_material, get_positional};
 use crate::magic_bitboards::MAGIC_MOVER;
 use crate::moving::{Move, MoveType, Unmove};
 use crate::piece::{Piece, PieceType, Side};
@@ -262,10 +263,22 @@ impl SearchBoard {
             .expect("Invalid FEN")
             .parse()
             .expect("Invalid FEN");
+        let mut eval = 0;
+        for (index, piece) in state
+            .board
+            .board
+            .iter()
+            .copied()
+            .enumerate()
+            .filter_map(|(index, i)| i.map(|i| (index, i)))
+        {
+            eval += get_material(piece);
+            eval += get_positional(piece, Position::from_index(index as u8))
+        }
         Self {
             halfmove_clock,
             state,
-            incremental_rating: 0,
+            incremental_rating: eval,
         }
     }
 }
@@ -284,10 +297,23 @@ impl DerefMut for SearchBoard {
 
 impl Default for SearchBoard {
     fn default() -> Self {
+        let state = BoardState::default();
+        let mut eval = 0;
+        for (index, piece) in state
+            .board
+            .board
+            .iter()
+            .copied()
+            .enumerate()
+            .filter_map(|(index, i)| i.map(|i| (index, i)))
+        {
+            eval += get_material(piece);
+            eval += get_positional(piece, Position::from_index(index as u8))
+        }
         Self {
-            state: BoardState::default(),
+            state,
             halfmove_clock: 0,
-            incremental_rating: 0,
+            incremental_rating: eval,
         }
     }
 }

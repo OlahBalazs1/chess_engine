@@ -31,7 +31,19 @@ pub fn evaluate(board: &SearchBoard, repetitions: &RepetitionHashmap) -> i64 {
 }
 
 pub fn eval_score(board: &SearchBoard) -> i64 {
-    board.incremental_rating
+    let mut eval = 0;
+    for (index, piece) in board
+        .board
+        .board
+        .iter()
+        .copied()
+        .enumerate()
+        .filter_map(|(index, i)| i.map(|i| (index, i)))
+    {
+        eval += get_material(piece);
+        eval += get_positional(piece, Position::from_index(index as u8))
+    }
+    eval
 }
 
 pub fn side_dependent_eval(board: &SearchBoard, is_check: bool, moves: &[Move]) -> i64 {
@@ -76,6 +88,7 @@ pub(crate) fn get_material(piece: Piece) -> i64 {
         King => KING_VALUE,
     }
     .mul(if Side::White == piece.side() { 1 } else { -1 })
+        * MATERIAL_WEIGHT
 }
 
 pub(crate) fn get_positional(piece: Piece, pos: Position) -> i64 {
@@ -98,15 +111,52 @@ pub(crate) fn rate_move(mov: &Move, who_to_move: Side) -> i64 {
     // good for black -> negative
     // good for white -> positive
     eval -= get_positional(piece, mov.from);
-    eval += get_positional(piece, mov.to);
-
-    // good for white -> get_material() returns negative value
-    // good for black -> get_material() returns positive value
-    // this is backwards from how it should be
-    // so it's negated from the score, not added
-    if let Some(taken) = mov.take {
-        eval -= get_material(taken) * MATERIAL_WEIGHT;
-        eval -= get_positional(piece, mov.to);
+    match mov.move_type {
+        MoveType::Normal(_) => {
+            eval += get_positional(piece, mov.to);
+            if let Some(taken) = mov.take {
+                eval -= get_material(taken);
+                eval -= get_positional(piece, mov.to);
+            }
+        }
+        MoveType::Promotion(promoted_to) => {
+            let promoted_to = promoted_to.with_side(who_to_move);
+            eval += get_material(promoted_to) + get_positional(promoted_to, mov.to);
+            if let Some(taken) = mov.take {
+                eval -= get_material(taken);
+                eval -= get_positional(piece, mov.to);
+            }
+        }
+        MoveType::ShortCastle => {
+            eval += get_positional(piece, mov.to);
+            eval -= get_positional(
+                PieceType::Rook.with_side(who_to_move),
+                Position::new(0, who_to_move.home_y()),
+            );
+            eval += get_positional(
+                PieceType::Rook.with_side(who_to_move),
+                Position::new(2, who_to_move.home_y()),
+            );
+        }
+        MoveType::LongCastle => {
+            eval += get_positional(piece, mov.to);
+            eval -= get_positional(
+                PieceType::Rook.with_side(who_to_move),
+                Position::new(7, who_to_move.home_y()),
+            );
+            eval += get_positional(
+                PieceType::Rook.with_side(who_to_move),
+                Position::new(5, who_to_move.home_y()),
+            );
+        }
+        MoveType::EnPassant => {
+            eval += get_positional(piece, mov.to);
+            eval -= get_material(PieceType::Pawn.with_side(who_to_move.opposite()));
+            eval -= get_positional(
+                PieceType::Pawn.with_side(who_to_move.opposite()),
+                mov.to.with_y(who_to_move.pers_y(3)).unwrap(),
+            );
+        }
     }
 
     eval

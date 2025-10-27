@@ -44,7 +44,7 @@ pub struct MagicData {
 use std::iter::Copied;
 use std::slice::Iter;
 impl MagicData {
-    pub fn possible_takes(&self) -> Copied<Iter<Position>> {
+    pub fn possible_takes(&self) -> Copied<Iter<'_, Position>> {
         self.ends.iter().copied()
     }
 }
