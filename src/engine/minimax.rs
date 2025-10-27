@@ -1,6 +1,13 @@
-use std::{collections::HashMap, iter, ops::Deref};
+use std::{
+    collections::{HashMap, btree_map::OccupiedEntry, hash_map::Entry},
+    iter,
+    ops::Deref,
+};
 
-use crate::engine::{self, RepetitionHashmap, add_board_to_repetition};
+use crate::engine::{
+    self, RepetitionHashmap, add_board_to_repetition, is_draw_repetition,
+    transposition_table::{self, NodeType, TTableEntry, TranspositionTable},
+};
 use nohash_hasher::BuildNoHashHasher;
 use owo_colors::OwoColorize;
 use rayon::prelude::*;
@@ -12,56 +19,54 @@ use crate::{
 };
 use engine::evaluate::*;
 
-pub fn minimax(board: SearchBoard, depth: i32, repetitions: &RepetitionHashmap) -> MinimaxResult {
+pub fn minimax(
+    board: SearchBoard,
+    depth: i32,
+    repetitions: &RepetitionHashmap,
+    transposition_table: &mut TranspositionTable,
+) -> MinimaxResult {
     if depth == 0 {
         panic!("Don't call minimax() with a depth of 0")
     }
     let (pin_state, check_paths) = board.legal_data();
     // let is_check = check_paths.is_check();
     let moves = board.find_all_moves(pin_state, check_paths);
-    let rated_moves = moves
-        .into_iter()
-        .map(|i| (i, rate_move(&i, board.side())))
-        .collect::<Vec<_>>();
-    let evals = rated_moves
-        .iter()
-        .map(|(mov, rating)| {
+    let evals = moves
+        .par_iter()
+        .map(|mov| {
             let mut board_copy = board.clone();
             let mut repetition_copy = repetitions.clone();
-            board_copy.make(&mov, *rating);
+            let mut transposition_copy = transposition_table.clone();
+            board_copy.make(&mov);
             add_board_to_repetition(&mut repetition_copy, &board_copy);
-            minimax_eval(&mut board_copy, depth, &repetition_copy, i64::MIN, i64::MAX)
+            minimax_eval(
+                &mut board_copy,
+                depth,
+                &repetition_copy,
+                i64::MIN,
+                i64::MAX,
+                &mut transposition_copy,
+            )
         })
         .map(|i| i.unwrap())
         .collect::<Vec<_>>();
 
-    filter_best(
-        rated_moves.into_iter().map(|(mov, _)| mov),
-        &evals,
-        board.side(),
-    )
+    filter_best(moves.into_iter(), &evals, board.side())
 }
 
 pub fn minimax_single_threaded(
-    board: SearchBoard,
+    mut board: SearchBoard,
     depth: i32,
     repetitions: &RepetitionHashmap,
+    transposition_table: &mut TranspositionTable,
 ) -> MinimaxResult {
     if depth == 0 {
         panic!("Don't call minimax() with a depth of 0")
     }
 
     let (pin_state, check_paths) = board.legal_data();
-    let moves = board.find_all_moves(pin_state, check_paths);
-    let mut rated_moves = moves
-        .into_iter()
-        .map(|i| (i, rate_move(&i, board.side())))
-        .collect::<Vec<_>>();
-    if board.side() == Side::White {
-        rated_moves.sort_by_key(|(_, rating)| -rating);
-    } else {
-        rated_moves.sort_by_key(|(_, rating)| *rating);
-    }
+    let mut moves = board.find_all_moves(pin_state, check_paths);
+    moves.sort_by_key(|i| -rate_move(i, board.side()));
 
     let mut alpha = i64::MIN;
     let mut beta = i64::MAX;
@@ -71,13 +76,32 @@ pub fn minimax_single_threaded(
         i64::MAX
     };
 
-    let mut evals = Vec::with_capacity(rated_moves.len());
-    for (mov, rating) in rated_moves.iter() {
-        let mut board_copy = board.clone();
-        let mut repetition_copy = repetitions.clone();
-        board_copy.make(&mov, *rating);
-        add_board_to_repetition(&mut repetition_copy, &board_copy);
-        let score = minimax_eval(&mut board_copy, depth, &repetition_copy, alpha, beta).unwrap();
+    let mut evals = Vec::with_capacity(moves.len());
+    let mut beta_cutoff = false;
+    let mut exceeded_alpha = false;
+    for mov in moves.iter() {
+        let mut repetition_copy;
+        if !is_permanent(&board, &mov) {
+            repetition_copy = repetitions.clone();
+        } else {
+            repetition_copy = HashMap::with_hasher(BuildNoHashHasher::new());
+        }
+        let unmove = Unmove::new(&mov, &board);
+        board.make(&mov);
+        add_board_to_repetition(&mut repetition_copy, &board);
+        let score = minimax_eval(
+            &mut board,
+            depth,
+            &repetition_copy,
+            alpha,
+            beta,
+            transposition_table,
+        )
+        .unwrap();
+        board.unmake(unmove);
+        if score > alpha {
+            exceeded_alpha = true;
+        }
 
         if board.side() == Side::White {
             if score > best {
@@ -87,6 +111,7 @@ pub fn minimax_single_threaded(
                 }
             }
             if score >= beta {
+                beta_cutoff = true;
                 break;
             }
         } else {
@@ -103,12 +128,23 @@ pub fn minimax_single_threaded(
 
         evals.push(score);
     }
+    let node_type = if beta_cutoff {
+        NodeType::Cut
+    } else if !exceeded_alpha {
+        NodeType::All
+    } else {
+        NodeType::PV
+    };
+    transposition_table.insert(
+        board.zobrist,
+        TTableEntry {
+            score: best,
+            depth,
+            node_type,
+        },
+    );
 
-    filter_best(
-        rated_moves.into_iter().map(|(mov, _)| mov),
-        &evals,
-        board.side(),
-    )
+    filter_best(moves.into_iter(), &evals, board.side())
 }
 
 fn minimax_eval(
@@ -117,20 +153,20 @@ fn minimax_eval(
     repetitions: &RepetitionHashmap,
     mut alpha: i64,
     mut beta: i64,
+    transposition_table: &mut TranspositionTable,
 ) -> Option<i64> {
     if depth == 0 {
         return Some(evaluate(&board, repetitions));
     }
+    if is_draw_repetition(&board, repetitions) {
+        return Some(0);
+    }
     let (pin_state, check_paths) = board.legal_data();
     let is_check = check_paths.is_check();
-    let moves = board.find_all_moves(pin_state, check_paths);
-    let mut rated_moves = moves
-        .into_iter()
-        .map(|i| (i, rate_move(&i, board.side())))
-        .collect::<Vec<_>>();
-    let are_there_moves = !rated_moves.is_empty();
+    let mut moves = board.find_all_moves(pin_state, check_paths);
+    let are_there_moves = !moves.is_empty();
     // sort_by_key() sorts in ascending order -> rate move needs to be negated
-    rated_moves.sort_by_key(|(_, rating)| -rating);
+    moves.sort_by_key(|i| -rate_move(i, board.side()));
     // board.side() = player
     // For black, a large negative number is a good evaluation
     // For white, a positive large number is good
@@ -139,8 +175,33 @@ fn minimax_eval(
     } else {
         i64::MAX
     };
-    let mut cut = false;
-    for (mov, rating) in rated_moves.iter() {
+    let mut beta_cutoff = false;
+    let mut exceeded_alpha = false;
+
+    let ttable_contains = match transposition_table.entry(board.zobrist) {
+        Entry::Occupied(entry) => {
+            if entry.get().depth < depth {
+                entry.remove();
+                false
+            } else {
+                let entry = entry.get();
+                match entry.node_type {
+                    NodeType::PV => {
+                        return Some(entry.score);
+                    }
+                    NodeType::Cut if entry.score >= beta => {
+                        return Some(entry.score);
+                    }
+                    NodeType::All if entry.score < alpha => {
+                        return Some(entry.score);
+                    }
+                    _ => true,
+                }
+            }
+        }
+        Entry::Vacant(_) => false,
+    };
+    for mov in moves {
         if let Some(PieceType::King) = mov.take.map(|i| i.piece_type) {
             println!(
                 "King taken: {} {:?}\n{:?}\n{:?}",
@@ -149,24 +210,32 @@ fn minimax_eval(
             return None;
         }
         let mut repetition_copy;
-        if !is_permanent(board, mov) {
+        if !is_permanent(board, &mov) {
             repetition_copy = repetitions.clone();
         } else {
             repetition_copy = HashMap::with_hasher(BuildNoHashHasher::new());
         }
-        let unmake = Unmove::new(mov, &board);
-        board.make(mov, *rating);
+        let unmake = Unmove::new(&mov, &board);
+        board.make(&mov);
 
         add_board_to_repetition(&mut repetition_copy, board);
-        let Some(score) = minimax_eval(board, depth - 1, &repetition_copy, alpha, beta) else {
-            println!(
-                "King taken: {} {:?}\n{:?}\n{:?}",
-                mov, mov, board.state, pin_state
-            );
-            return None;
-        };
+        let score = minimax_eval(
+            board,
+            depth - 1,
+            &repetition_copy,
+            alpha,
+            beta,
+            transposition_table,
+        )
+        .expect(&format!(
+            "King taken: {} {:?}\n{:?}\n{:?}",
+            mov, mov, board.state, pin_state
+        ));
         // here board.side == enemy
-        board.unmake(unmake, *rating);
+        board.unmake(unmake);
+        if score > alpha {
+            exceeded_alpha = true;
+        }
         // after unmake, it's the player
         if board.side() == Side::White {
             if score > best {
@@ -176,6 +245,7 @@ fn minimax_eval(
                 }
             }
             if score >= beta {
+                beta_cutoff = true;
                 break;
             }
         } else {
@@ -189,6 +259,23 @@ fn minimax_eval(
                 break;
             }
         }
+    }
+    let node_type = if beta_cutoff {
+        NodeType::Cut
+    } else if !exceeded_alpha {
+        NodeType::All
+    } else {
+        NodeType::PV
+    };
+    if !ttable_contains {
+        transposition_table.insert(
+            board.zobrist,
+            TTableEntry {
+                score: best,
+                depth,
+                node_type,
+            },
+        );
     }
     let outcome = outcome(board, are_there_moves, is_check, repetitions);
     match outcome {

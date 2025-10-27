@@ -12,6 +12,7 @@ use crate::{
         evaluate::{Outcome, outcome, rate_move},
         is_draw_repetition,
         minimax::{minimax, minimax_single_threaded},
+        transposition_table::{self, TranspositionTable},
     },
     moving::Move,
     piece::Side,
@@ -19,17 +20,21 @@ use crate::{
 
 pub fn play(depth: i32, mut board: SearchBoard, player_side: Side) {
     let mut repetitions = HashMap::with_hasher(BuildNoHashHasher::new());
+    let mut transposition_table = TranspositionTable::default();
 
     loop {
         println!("{}", board.state);
         if board.side() == player_side.opposite() {
-            let Some(chosen_move) = minimax(board.clone(), depth, &repetitions).get(0).copied()
+            let Some(chosen_move) =
+                minimax(board.clone(), depth, &repetitions, &mut transposition_table)
+                    .get(0)
+                    .copied()
             else {
                 break;
             };
             println!("{}", chosen_move);
             let rating = rate_move(&chosen_move, board.side());
-            board.make(&chosen_move, rating);
+            board.make(&chosen_move);
             continue;
         }
         if is_draw_repetition(&board, &repetitions) {
@@ -49,7 +54,7 @@ pub fn play(depth: i32, mut board: SearchBoard, player_side: Side) {
             };
             if legal_moves.contains(&player_move) {
                 let rating = rate_move(&player_move, board.side());
-                board.make(&player_move, rating);
+                board.make(&player_move);
                 break;
             }
         }
@@ -71,14 +76,19 @@ pub fn play(depth: i32, mut board: SearchBoard, player_side: Side) {
 
 pub fn autoplay(depth: i32, mut board: SearchBoard) {
     let mut repetition = HashMap::with_hasher(BuildNoHashHasher::new());
+    let mut transposition_table = TranspositionTable::default();
     loop {
         println!("{}", board.state);
-        let Some(chosen_move) = minimax(board.clone(), depth, &repetition).get(0).copied() else {
+        let Some(chosen_move) =
+            minimax(board.clone(), depth, &repetition, &mut transposition_table)
+                .get(0)
+                .copied()
+        else {
             break;
         };
         println!("{}", chosen_move);
         let rating = rate_move(&chosen_move, board.side());
-        board.make(&chosen_move, rating);
+        board.make(&chosen_move);
         add_board_to_repetition(&mut repetition, &board);
 
         let (pin_state, check_path) = board.legal_data();
@@ -95,17 +105,19 @@ pub fn autoplay(depth: i32, mut board: SearchBoard) {
 }
 pub fn autoplay_single_threaded(depth: i32, mut board: SearchBoard) {
     let mut repetition = HashMap::with_hasher(BuildNoHashHasher::new());
+    let mut transposition_table = TranspositionTable::default();
     loop {
         println!("{}", board.state);
-        let Some(chosen_move) = minimax_single_threaded(board.clone(), depth, &repetition)
-            .get(0)
-            .copied()
+        let Some(chosen_move) =
+            minimax_single_threaded(board.clone(), depth, &repetition, &mut transposition_table)
+                .get(0)
+                .copied()
         else {
             break;
         };
         println!("{}", chosen_move);
         let rating = rate_move(&chosen_move, board.side());
-        board.make(&chosen_move, rating);
+        board.make(&chosen_move);
         add_board_to_repetition(&mut repetition, &board);
 
         let (pin_state, check_path) = board.legal_data();
@@ -140,7 +152,7 @@ impl Game {
         let rating = rate_move(mov, self.board.side());
 
         if legal_moves.contains(mov) {
-            self.board.make(&mov, rating);
+            self.board.make(&mov);
             add_board_to_repetition(&mut self.repetitions, &self.board);
 
             let (pin_state, check_path) = self.board.legal_data();
@@ -159,9 +171,15 @@ impl Game {
         if self.last_move_outcome.is_game_over() {
             return None;
         }
-        minimax(self.board.clone(), depth, &self.repetitions)
-            .get(0)
-            .copied()
+        let mut transposition_table = TranspositionTable::default();
+        minimax(
+            self.board.clone(),
+            depth,
+            &self.repetitions,
+            &mut transposition_table,
+        )
+        .get(0)
+        .copied()
     }
 
     pub fn outcome(&self) -> Outcome {

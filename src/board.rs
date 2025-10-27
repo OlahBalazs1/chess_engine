@@ -19,7 +19,6 @@ use PieceType::*;
 pub struct SearchBoard {
     pub state: BoardState,
     pub halfmove_clock: u8,
-    pub incremental_rating: i64,
 }
 macro_rules! allies {
     ($side: ident, $state: ident) => {
@@ -77,7 +76,7 @@ impl SearchBoard {
         moves
     }
 
-    pub fn make<'a>(&mut self, mov: &'a Move, rating: i64) {
+    pub fn make<'a>(&mut self, mov: &'a Move) {
         let ally_side = self.state.side;
         let enemy_side = ally_side.opposite();
 
@@ -189,12 +188,10 @@ impl SearchBoard {
             }
         }
 
-        self.incremental_rating += rating;
-
         self.state.side = self.state.side.opposite();
     }
 
-    pub fn unmake(&mut self, unmove: Unmove, rating: i64) {
+    pub fn unmake(&mut self, unmove: Unmove) {
         self.state.side = self.state.side.opposite();
         let ally_side = self.state.side;
         let mov = unmove.mov;
@@ -246,7 +243,6 @@ impl SearchBoard {
         if piece == PieceType::King {
             *self.side_king_mut(ally_side) = mov.from;
         }
-        self.incremental_rating -= rating;
 
         self.state.en_passant_square = unmove.en_passant_square;
         self.state.white_castling = unmove.white_castling;
@@ -263,22 +259,9 @@ impl SearchBoard {
             .expect("Invalid FEN")
             .parse()
             .expect("Invalid FEN");
-        let mut eval = 0;
-        for (index, piece) in state
-            .board
-            .board
-            .iter()
-            .copied()
-            .enumerate()
-            .filter_map(|(index, i)| i.map(|i| (index, i)))
-        {
-            eval += get_material(piece);
-            eval += get_positional(piece, Position::from_index(index as u8))
-        }
         Self {
             halfmove_clock,
             state,
-            incremental_rating: eval,
         }
     }
 }
@@ -313,7 +296,6 @@ impl Default for SearchBoard {
         Self {
             state,
             halfmove_clock: 0,
-            incremental_rating: eval,
         }
     }
 }

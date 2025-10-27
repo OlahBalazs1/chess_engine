@@ -6,8 +6,8 @@ use crate::{
         RepetitionHashmap,
         constants::{
             BISHOP_POSITIONAL, BISHOP_VALUE, KING_POSITIONAL, KING_VALUE, KNIGHT_POSITIONAL,
-            KNIGHT_VALUE, MATERIAL_WEIGHT, PAWN_POSITIONAL, PAWN_VALUE, QUEEN_POSITIONAL,
-            QUEEN_VALUE, ROOK_POSITIONAL, ROOK_VALUE,
+            KNIGHT_VALUE, MATERIAL_WEIGHT, MOBILITY_WEIGHT, PAWN_POSITIONAL, PAWN_VALUE,
+            POSITIONAL_WEIGHT, QUEEN_POSITIONAL, QUEEN_VALUE, ROOK_POSITIONAL, ROOK_VALUE,
         },
         is_draw_repetition, who2move,
     },
@@ -48,7 +48,7 @@ pub fn eval_score(board: &SearchBoard) -> i64 {
 
 pub fn side_dependent_eval(board: &SearchBoard, is_check: bool, moves: &[Move]) -> i64 {
     let mut eval = 0;
-    eval += moves.len().isqrt() as i64;
+    eval += moves.len().isqrt() as i64 * MOBILITY_WEIGHT;
     if is_check {
         eval -= 10;
     }
@@ -102,6 +102,7 @@ pub(crate) fn get_positional(piece: Piece, pos: Position) -> i64 {
         King => KING_POSITIONAL,
     }[*lookup_pos as usize])
         .mul(if Side::White == piece.side() { 1 } else { -1 })
+        * POSITIONAL_WEIGHT
 }
 pub(crate) fn rate_move(mov: &Move, who_to_move: Side) -> i64 {
     let mut eval = 0;

@@ -11,6 +11,7 @@ pub mod evaluate;
 pub mod minimax;
 #[allow(dead_code)]
 pub mod play;
+pub mod transposition_table;
 type ZobristHash = u64;
 type RepetitionHashmap = HashMap<ZobristHash, u8, BuildNoHashHasher<u64>>;
 
