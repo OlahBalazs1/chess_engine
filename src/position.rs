@@ -1,5 +1,8 @@
 use std::fmt::Display;
+use std::hash::Hash;
 use std::ops::Deref;
+
+use nohash_hasher::IsEnabled;
 
 #[derive(Clone, Copy)]
 pub struct Offset {
@@ -26,11 +29,17 @@ impl Offset {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 #[repr(transparent)]
 pub struct Position {
     pub index: u8,
 }
+impl Hash for Position {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        state.write_u8(self.index);
+    }
+}
+impl IsEnabled for Position {}
 
 impl Deref for Position {
     type Target = u8;

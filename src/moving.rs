@@ -1,7 +1,11 @@
+use nohash_hasher::IsEnabled;
+
 use crate::board::{BoardState, SearchBoard};
 use crate::piece::{Piece, PieceType, Side};
 use crate::position::Position;
 use std::fmt::{Debug, Display};
+use std::hash::Hash;
+use std::mem;
 
 #[repr(u8)]
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
@@ -34,13 +38,45 @@ impl<'a> Unmove<'a> {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct Move {
     pub move_type: MoveType,
     pub from: Position,
     pub to: Position,
     pub take: Option<Piece>,
 }
+impl Hash for Move {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        debug_assert!(mem::size_of::<Move>() <= 8);
+        let mut hash_bytes = [0_u8; 8];
+        match self.move_type {
+            MoveType::Normal(typ) => {
+                hash_bytes[0] = 0;
+                hash_bytes[1] = typ as u8
+            }
+            MoveType::Promotion(typ) => {
+                hash_bytes[0] = 1;
+                hash_bytes[1] = typ as u8
+            }
+            MoveType::LongCastle => hash_bytes[0] = 2,
+            MoveType::ShortCastle => hash_bytes[0] = 3,
+            MoveType::EnPassant => hash_bytes[0] = 4,
+        }
+        hash_bytes[2] = self.from.index;
+        hash_bytes[3] = self.to.index;
+        if let Some(taken) = self.take {
+            // if taken is none, these 2 bytes would be all zeroes
+            // this can also happen if the taken piece is a white pawn
+            // by NOT-ing side, these will not collide
+            hash_bytes[4] = !(taken.side as u8);
+            hash_bytes[5] = taken.piece_type as u8;
+        }
+
+        // byte order doesn't matter actually
+        state.write_u64(u64::from_le_bytes(hash_bytes));
+    }
+}
+impl IsEnabled for Move {}
 
 impl Move {
     pub fn new(from: Position, to: Position, move_type: MoveType, take: Option<Piece>) -> Self {
