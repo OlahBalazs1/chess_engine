@@ -26,5 +26,5 @@ use crate::{
 };
 
 fn main() {
-    autoplay_single_threaded(5, SearchBoard::default());
+    autoplay_single_threaded(2, SearchBoard::default());
 }

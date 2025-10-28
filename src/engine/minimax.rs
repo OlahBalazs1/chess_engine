@@ -68,8 +68,6 @@ pub fn minimax_single_threaded(
     let mut moves = board.find_all_moves(pin_state, check_paths);
     moves.sort_by_key(|i| -rate_move(i, board.side()));
 
-    let mut alpha = i64::MIN;
-    let mut beta = i64::MAX;
     let mut best = if board.side() == Side::White {
         i64::MIN
     } else {
@@ -78,6 +76,8 @@ pub fn minimax_single_threaded(
 
     let mut evals = Vec::with_capacity(moves.len());
     for mov in moves.iter() {
+        let mut alpha = i64::MIN;
+        let mut beta = i64::MAX;
         let mut repetition_copy;
         if !is_permanent(&board, &mov) {
             repetition_copy = repetitions.clone();
@@ -91,8 +91,8 @@ pub fn minimax_single_threaded(
             &mut board,
             depth,
             &repetition_copy,
-            alpha,
-            beta,
+            i64::MIN,
+            i64::MAX,
             transposition_table,
         )
         .unwrap();
@@ -103,7 +103,7 @@ pub fn minimax_single_threaded(
             }
             alpha = alpha.max(score);
             if score >= beta {
-                break;
+                // break;
             }
         } else {
             if score < best {
@@ -111,7 +111,7 @@ pub fn minimax_single_threaded(
             }
             beta = beta.min(score);
             if score <= alpha {
-                break;
+                // break;
             }
         }
 
@@ -148,6 +148,7 @@ fn minimax_eval(
     let mut moves = board.find_all_moves(pin_state, check_paths);
     let are_there_moves = !moves.is_empty();
     // sort_by_key() sorts in ascending order -> rate move needs to be negated
+    //
     moves.sort_by_cached_key(|i| -rate_move(i, board.side()));
     // board.side() = player
     // For black, a large negative number is a good evaluation
@@ -183,10 +184,8 @@ fn minimax_eval(
         }
         Entry::Vacant(_) => false,
     };
+
     for mov in moves {
-        if let Some(PieceType::King) = mov.take.map(|i| i.piece_type) {
-            return None;
-        }
         let mut repetition_copy;
         if !is_permanent(board, &mov) {
             repetition_copy = repetitions.clone();
@@ -215,8 +214,10 @@ fn minimax_eval(
         if board.side() == Side::White {
             if score > best {
                 best = score;
+                if score > alpha {
+                    alpha = score
+                }
             }
-            alpha = alpha.max(score);
             if score >= beta {
                 beta_cutoff = true;
                 break;
@@ -224,8 +225,10 @@ fn minimax_eval(
         } else {
             if score < best {
                 best = score;
+                if score < beta {
+                    beta = score
+                }
             }
-            beta = beta.min(score);
             if score <= alpha {
                 break;
             }

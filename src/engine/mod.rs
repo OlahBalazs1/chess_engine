@@ -15,7 +15,7 @@ pub mod transposition_table;
 type ZobristHash = u64;
 type RepetitionHashmap = HashMap<ZobristHash, u8, BuildNoHashHasher<u64>>;
 
-fn who2move(side: Side) -> i8 {
+fn who2move(side: Side) -> i64 {
     match side {
         Side::White => 1,
         Side::Black => -1,
