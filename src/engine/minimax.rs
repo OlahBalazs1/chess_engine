@@ -148,7 +148,7 @@ fn minimax_eval(
     let mut moves = board.find_all_moves(pin_state, check_paths);
     let are_there_moves = !moves.is_empty();
     // sort_by_key() sorts in ascending order -> rate move needs to be negated
-    moves.sort_by_key(|i| -rate_move(i, board.side()));
+    moves.sort_by_cached_key(|i| -rate_move(i, board.side()));
     // board.side() = player
     // For black, a large negative number is a good evaluation
     // For white, a positive large number is good
@@ -185,10 +185,6 @@ fn minimax_eval(
     };
     for mov in moves {
         if let Some(PieceType::King) = mov.take.map(|i| i.piece_type) {
-            println!(
-                "King taken: {} {:?}\n{:?}\n{:?}",
-                mov, mov, board.state, pin_state
-            );
             return None;
         }
         let mut repetition_copy;
@@ -209,10 +205,7 @@ fn minimax_eval(
             beta,
             transposition_table,
         )
-        .expect(&format!(
-            "King taken: {} {:?}\n{:?}\n{:?}",
-            mov, mov, board.state, pin_state
-        ));
+        .unwrap();
         // here board.side == enemy
         board.unmake(unmake);
         if score > alpha {

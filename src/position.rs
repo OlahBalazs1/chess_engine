@@ -108,7 +108,7 @@ impl Position {
         1 << self.index
     }
     #[inline]
-    pub fn with_x(self, x: u8) -> Option<Self> {
+    pub const fn with_x(self, x: u8) -> Option<Self> {
         if x >= 8 {
             return None;
         }
@@ -116,7 +116,7 @@ impl Position {
     }
 
     #[inline]
-    pub fn with_y(self, y: u8) -> Option<Self> {
+    pub const fn with_y(self, y: u8) -> Option<Self> {
         if y >= 8 {
             return None;
         }

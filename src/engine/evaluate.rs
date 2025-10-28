@@ -78,89 +78,64 @@ pub fn outcome(
     }
 }
 
-pub(crate) fn get_material(piece: Piece) -> i64 {
-    match piece.role() {
+pub(crate) const fn get_material(piece: Piece) -> i64 {
+    let fundamental_value = match piece.role() {
         Pawn => PAWN_VALUE,
         Rook => ROOK_VALUE,
         Knight => KNIGHT_VALUE,
         Bishop => BISHOP_VALUE,
         Queen => QUEEN_VALUE,
         King => KING_VALUE,
-    }
-    .mul(if Side::White == piece.side() { 1 } else { -1 })
+    };
+    fundamental_value
+        * (if let Side::White = piece.side() {
+            1
+        } else {
+            -1
+        })
         * MATERIAL_WEIGHT
 }
 
-pub(crate) fn get_positional(piece: Piece, pos: Position) -> i64 {
+pub(crate) const fn get_positional(piece: Piece, pos: Position) -> i64 {
     let lookup_pos = pos.with_y(piece.side().pers_y(pos.y())).unwrap();
-    (match piece.role() {
+    let value = match piece.role() {
         Pawn => PAWN_POSITIONAL,
         Rook => ROOK_POSITIONAL,
         Knight => KNIGHT_POSITIONAL,
         Bishop => BISHOP_POSITIONAL,
         Queen => QUEEN_POSITIONAL,
         King => KING_POSITIONAL,
-    }[*lookup_pos as usize])
-        .mul(if Side::White == piece.side() { 1 } else { -1 })
+    }[lookup_pos.index() as usize];
+    value
+        * (if let Side::White = piece.side() {
+            1
+        } else {
+            -1
+        })
         * POSITIONAL_WEIGHT
 }
 pub(crate) fn rate_move(mov: &Move, who_to_move: Side) -> i64 {
-    let mut eval = 0;
-
     let piece = mov.piece_type().with_side(who_to_move);
     // accounts for color
     // good for black -> negative
     // good for white -> positive
-    eval -= get_positional(piece, mov.from);
     match mov.move_type {
         MoveType::Normal(_) => {
+            let mut eval = 0;
+            eval -= get_positional(piece, mov.from);
             eval += get_positional(piece, mov.to);
             if let Some(taken) = mov.take {
                 eval -= get_material(taken);
-                eval -= get_positional(piece, mov.to);
             }
+            eval
         }
         MoveType::Promotion(promoted_to) => {
-            let promoted_to = promoted_to.with_side(who_to_move);
-            eval += get_material(promoted_to) + get_positional(promoted_to, mov.to);
-            if let Some(taken) = mov.take {
-                eval -= get_material(taken);
-                eval -= get_positional(piece, mov.to);
-            }
+            get_material(promoted_to.with_side(Side::White)).pow(2) * who2move(who_to_move) as i64
         }
-        MoveType::ShortCastle => {
-            eval += get_positional(piece, mov.to);
-            eval -= get_positional(
-                PieceType::Rook.with_side(who_to_move),
-                Position::new(0, who_to_move.home_y()),
-            );
-            eval += get_positional(
-                PieceType::Rook.with_side(who_to_move),
-                Position::new(2, who_to_move.home_y()),
-            );
-        }
-        MoveType::LongCastle => {
-            eval += get_positional(piece, mov.to);
-            eval -= get_positional(
-                PieceType::Rook.with_side(who_to_move),
-                Position::new(7, who_to_move.home_y()),
-            );
-            eval += get_positional(
-                PieceType::Rook.with_side(who_to_move),
-                Position::new(5, who_to_move.home_y()),
-            );
-        }
-        MoveType::EnPassant => {
-            eval += get_positional(piece, mov.to);
-            eval -= get_material(PieceType::Pawn.with_side(who_to_move.opposite()));
-            eval -= get_positional(
-                PieceType::Pawn.with_side(who_to_move.opposite()),
-                mov.to.with_y(who_to_move.pers_y(3)).unwrap(),
-            );
-        }
+        MoveType::ShortCastle => 20000 * who2move(who_to_move) as i64,
+        MoveType::LongCastle => 20000 * who2move(who_to_move) as i64,
+        MoveType::EnPassant => 1_000_000 * who2move(who_to_move) as i64,
     }
-
-    eval
 }
 
 #[repr(u8)]
