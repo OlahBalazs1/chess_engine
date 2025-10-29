@@ -1,4 +1,3 @@
-
 use crate::{
     board::BoardState,
     board_repr::{BISHOP, KNIGHT, PAWN, QUEEN, ROOK},
@@ -258,8 +257,4 @@ impl Default for CheckPath {
     fn default() -> Self {
         Self::None
     }
-}
-
-fn is_middle_inbetween(x1: u8, middle: u8, x2: u8) -> bool {
-    (x1 < middle && middle < x2) || (x1 > middle && middle > x2)
 }

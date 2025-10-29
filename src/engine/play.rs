@@ -9,10 +9,10 @@ use crate::{
     board::SearchBoard,
     engine::{
         add_board_to_repetition,
-        evaluate::{Outcome, outcome, rate_move},
+        evaluate::{Outcome, outcome},
         is_draw_repetition,
         minimax::{minimax, minimax_single_threaded},
-        transposition_table::{self, TranspositionTable},
+        transposition_table::TranspositionTable,
     },
     moving::Move,
     piece::Side,
@@ -33,7 +33,6 @@ pub fn play(depth: i32, mut board: SearchBoard, player_side: Side) {
                 break;
             };
             println!("{}", chosen_move);
-            let rating = rate_move(&chosen_move, board.side());
             board.make(&chosen_move);
             continue;
         }
@@ -53,7 +52,6 @@ pub fn play(depth: i32, mut board: SearchBoard, player_side: Side) {
                 continue;
             };
             if legal_moves.contains(&player_move) {
-                let rating = rate_move(&player_move, board.side());
                 board.make(&player_move);
                 break;
             }
@@ -87,7 +85,6 @@ pub fn autoplay(depth: i32, mut board: SearchBoard) {
             break;
         };
         println!("{}", chosen_move);
-        let rating = rate_move(&chosen_move, board.side());
         board.make(&chosen_move);
         add_board_to_repetition(&mut repetition, &board);
 
@@ -116,7 +113,6 @@ pub fn autoplay_single_threaded(depth: i32, mut board: SearchBoard) {
             break;
         };
         println!("{}", chosen_move);
-        let rating = rate_move(&chosen_move, board.side());
         board.make(&chosen_move);
         add_board_to_repetition(&mut repetition, &board);
 
@@ -149,7 +145,6 @@ impl Game {
         }
         let (pin_state, check_paths) = self.board.legal_data();
         let legal_moves = self.board.find_all_moves(pin_state, check_paths);
-        let rating = rate_move(mov, self.board.side());
 
         if legal_moves.contains(mov) {
             self.board.make(&mov);

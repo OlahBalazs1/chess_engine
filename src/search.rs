@@ -156,12 +156,6 @@ fn find_pawn_restricted(
     ep_square: Option<Position>,
     can_ep: bool,
 ) {
-    // takes
-    let yo = match side {
-        Side::White => 1,
-        Side::Black => -1,
-    };
-
     let data = &choose_pawn_take_mask(side)[*pos as usize];
 
     for i in data.positions.iter().copied() {

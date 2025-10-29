@@ -1,5 +1,3 @@
-use crate::piece::PieceType;
-
 pub const PAWN_VALUE: i64 = 1;
 pub const KNIGHT_VALUE: i64 = 3;
 pub const BISHOP_VALUE: i64 = 3;

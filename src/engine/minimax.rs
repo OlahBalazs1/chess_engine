@@ -1,15 +1,14 @@
 use std::{
-    collections::{HashMap, btree_map::OccupiedEntry, hash_map::Entry},
+    collections::{HashMap, hash_map::Entry},
     iter,
     ops::Deref,
 };
 
 use crate::engine::{
     self, RepetitionHashmap, add_board_to_repetition, is_draw_repetition,
-    transposition_table::{self, NodeType, TTableEntry, TranspositionTable},
+    transposition_table::{NodeType, TTableEntry, TranspositionTable},
 };
 use nohash_hasher::BuildNoHashHasher;
-use owo_colors::OwoColorize;
 use rayon::prelude::*;
 
 use crate::{
@@ -75,9 +74,9 @@ pub fn minimax_single_threaded(
     };
 
     let mut evals = Vec::with_capacity(moves.len());
+    let mut alpha = i64::MIN;
+    let mut beta = i64::MAX;
     for mov in moves.iter() {
-        let mut alpha = i64::MIN;
-        let mut beta = i64::MAX;
         let mut repetition_copy;
         if !is_permanent(&board, &mov) {
             repetition_copy = repetitions.clone();
@@ -103,7 +102,7 @@ pub fn minimax_single_threaded(
             }
             alpha = alpha.max(score);
             if score >= beta {
-                // break;
+                break;
             }
         } else {
             if score < best {
@@ -111,7 +110,7 @@ pub fn minimax_single_threaded(
             }
             beta = beta.min(score);
             if score <= alpha {
-                // break;
+                break;
             }
         }
 

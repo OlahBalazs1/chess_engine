@@ -1,7 +1,7 @@
 use nohash_hasher::IsEnabled;
 
 use crate::board::{BoardState, SearchBoard};
-use crate::piece::{Piece, PieceType, Side};
+use crate::piece::{Piece, PieceType};
 use crate::position::Position;
 use std::fmt::{Debug, Display};
 use std::hash::Hash;
