@@ -154,9 +154,9 @@ pub(crate) fn rate_move(mov: &Move, who_to_move: Side) -> i64 {
             eval
         }
         MoveType::Promotion(promoted_to) => get_raw_material(promoted_to).pow(2),
-        MoveType::ShortCastle => 20000 * who2move(who_to_move) as i64,
-        MoveType::LongCastle => 20000 * who2move(who_to_move) as i64,
-        MoveType::EnPassant => 1_000_000 * who2move(who_to_move) as i64,
+        MoveType::ShortCastle => 20000,
+        MoveType::LongCastle => 20000,
+        MoveType::EnPassant => 1_000_000,
     }
 }
 

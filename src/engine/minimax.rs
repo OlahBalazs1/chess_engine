@@ -1,6 +1,6 @@
 use std::{
     collections::{HashMap, hash_map::Entry},
-    iter,
+    i64, iter,
     ops::Deref,
 };
 
@@ -9,6 +9,7 @@ use crate::engine::{
     transposition_table::{NodeType, TTableEntry, TranspositionTable},
 };
 use nohash_hasher::BuildNoHashHasher;
+use owo_colors::colors::css::Orange;
 use rayon::prelude::*;
 
 use crate::{
@@ -128,6 +129,8 @@ pub fn minimax_single_threaded(
     filter_best(moves.into_iter(), &evals, board.side())
 }
 
+// TODO: Test TT by analyzing a game played with it and without it
+// if it causes random blunders, it doesn't work
 fn minimax_eval(
     board: &mut SearchBoard,
     depth: i32,
@@ -139,15 +142,43 @@ fn minimax_eval(
     if depth == 0 {
         return Some(evaluate(&board, repetitions));
     }
-    if is_draw_repetition(&board, repetitions) {
-        return Some(0);
+    // Transposition table
+    match transposition_table.entry(board.zobrist) {
+        Entry::Occupied(entry) => {
+            let entry_val = entry.get();
+
+            if entry_val.depth >= depth {
+                match entry_val.node_type {
+                    NodeType::PV => {
+                        return Some(entry_val.score);
+                    }
+                    NodeType::Cut if entry_val.score >= beta => {
+                        return Some(entry_val.score);
+                    }
+                    NodeType::All if entry_val.score < alpha => {
+                        return Some(entry_val.score);
+                    }
+                    _ => {
+                        entry.remove();
+                    }
+                };
+            }
+        }
+        _ => {}
     }
+
     let (pin_state, check_paths) = board.legal_data();
     let is_check = check_paths.is_check();
     let mut moves = board.find_all_moves(pin_state, check_paths);
     let are_there_moves = !moves.is_empty();
+
+    match outcome(board, are_there_moves, is_check, repetitions) {
+        Outcome::Ongoing => {}
+        Outcome::WhiteWon => return Some(i64::MAX),
+        Outcome::BlackWon => return Some(i64::MIN),
+        Outcome::Stalemate => return Some(0),
+    }
     // sort_by_key() sorts in ascending order -> rate move needs to be negated
-    //
     moves.sort_by_cached_key(|i| -rate_move(i, board.side()));
     // board.side() = player
     // For black, a large negative number is a good evaluation
@@ -157,32 +188,10 @@ fn minimax_eval(
     } else {
         i64::MAX
     };
+
+    // Transposition table
     let mut beta_cutoff = false;
     let mut exceeded_alpha = false;
-
-    let ttable_contains = match transposition_table.entry(board.zobrist) {
-        Entry::Occupied(entry) => {
-            if entry.get().depth < depth {
-                entry.remove();
-                false
-            } else {
-                let entry = entry.get();
-                match entry.node_type {
-                    NodeType::PV => {
-                        return Some(entry.score);
-                    }
-                    NodeType::Cut if entry.score >= beta => {
-                        return Some(entry.score);
-                    }
-                    NodeType::All if entry.score < alpha => {
-                        return Some(entry.score);
-                    }
-                    _ => true,
-                }
-            }
-        }
-        Entry::Vacant(_) => false,
-    };
 
     for mov in moves {
         let mut repetition_copy;
@@ -204,12 +213,11 @@ fn minimax_eval(
             transposition_table,
         )
         .unwrap();
-        // here board.side == enemy
         board.unmake(unmake);
+        // Transposition table
         if score > alpha {
             exceeded_alpha = true;
         }
-        // after unmake, it's the player
         if board.side() == Side::White {
             if score > best {
                 best = score;
@@ -233,6 +241,7 @@ fn minimax_eval(
             }
         }
     }
+    // Transposition table
     let node_type = if beta_cutoff {
         NodeType::Cut
     } else if !exceeded_alpha {
@@ -240,16 +249,15 @@ fn minimax_eval(
     } else {
         NodeType::PV
     };
-    if !ttable_contains {
-        transposition_table.insert(
-            board.zobrist,
-            TTableEntry {
-                score: best,
-                depth,
-                node_type,
-            },
-        );
-    }
+    // Transposition table
+    transposition_table.insert(
+        board.zobrist,
+        TTableEntry {
+            score: best,
+            depth,
+            node_type,
+        },
+    );
     let outcome = outcome(board, are_there_moves, is_check, repetitions);
     match outcome {
         Outcome::Stalemate => Some(0),
