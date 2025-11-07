@@ -164,6 +164,10 @@ impl Position {
             self.with_x(7).unwrap()
         }
     }
+
+    pub fn into_algebraic(self) -> String {
+        String::from_utf8(vec![self.x() + b'a', self.y() + b'1']).unwrap()
+    }
 }
 
 impl TryFrom<u8> for Position {
@@ -193,10 +197,6 @@ impl Into<usize> for Position {
 
 impl Display for Position {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "{}",
-            String::from_utf8(vec![self.x() + b'a', self.y() + b'1']).unwrap()
-        )
+        write!(f, "{}", self.into_algebraic())
     }
 }

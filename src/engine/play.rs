@@ -16,11 +16,13 @@ use crate::{
     },
     moving::Move,
     piece::Side,
+    util::pgn,
 };
 
 pub fn play(depth: i32, mut board: SearchBoard, player_side: Side) {
     let mut repetitions = HashMap::with_hasher(BuildNoHashHasher::new());
     let mut transposition_table = TranspositionTable::default();
+    let mut played_moves = Vec::new();
 
     loop {
         println!("{}", board.state);
@@ -34,6 +36,7 @@ pub fn play(depth: i32, mut board: SearchBoard, player_side: Side) {
             };
             println!("{}", chosen_move);
             board.make(&chosen_move);
+            played_moves.push(chosen_move);
             continue;
         }
         if is_draw_repetition(&board, &repetitions) {
@@ -53,6 +56,7 @@ pub fn play(depth: i32, mut board: SearchBoard, player_side: Side) {
             };
             if legal_moves.contains(&player_move) {
                 board.make(&player_move);
+                played_moves.push(player_move);
                 break;
             }
         }
@@ -70,11 +74,13 @@ pub fn play(depth: i32, mut board: SearchBoard, player_side: Side) {
         }
         add_board_to_repetition(&mut repetitions, &board);
     }
+    println!("{}", pgn(&played_moves))
 }
 
 pub fn autoplay(depth: i32, mut board: SearchBoard) {
     let mut repetition = HashMap::with_hasher(BuildNoHashHasher::new());
     let mut transposition_table = TranspositionTable::default();
+    let mut played_moves = Vec::new();
     loop {
         println!("{}", board.state);
         let Some(chosen_move) =
@@ -86,6 +92,7 @@ pub fn autoplay(depth: i32, mut board: SearchBoard) {
         };
         println!("{}", chosen_move);
         board.make(&chosen_move);
+        played_moves.push(chosen_move);
         add_board_to_repetition(&mut repetition, &board);
 
         let (pin_state, check_path) = board.legal_data();
@@ -99,6 +106,7 @@ pub fn autoplay(depth: i32, mut board: SearchBoard) {
         }
     }
     println!("{}", board.state);
+    println!("{}", pgn(&played_moves))
 }
 pub fn autoplay_single_threaded(depth: i32, mut board: SearchBoard) {
     let mut repetition = HashMap::with_hasher(BuildNoHashHasher::new());

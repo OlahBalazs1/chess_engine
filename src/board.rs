@@ -14,6 +14,7 @@ use crate::zobrist::*;
 
 use PieceType::*;
 
+// TODO: Avoid deref polymorphism
 #[derive(Clone, PartialEq)]
 pub struct SearchBoard {
     pub state: BoardState,

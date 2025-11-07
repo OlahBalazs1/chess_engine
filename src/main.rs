@@ -27,5 +27,5 @@ use crate::{
 
 fn main() {
     let board = SearchBoard::default();
-    autoplay(6, board);
+    autoplay(4, board);
 }

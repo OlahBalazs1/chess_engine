@@ -173,6 +173,40 @@ impl Move {
             take,
         })
     }
+
+    pub fn into_algebraic(self) -> String {
+        match self.move_type {
+            MoveType::Normal(piece_type) => {
+                let take = if let Some(_) = self.take { "x" } else { "" };
+                format!(
+                    "{}{}{}{}",
+                    piece_type.as_char(),
+                    self.from.into_algebraic(),
+                    take,
+                    self.to.into_algebraic()
+                )
+            }
+            MoveType::Promotion(promoted_to) => {
+                let take = if let Some(_) = self.take { "x" } else { "" };
+                format!(
+                    "{}{}{}={}",
+                    self.from.into_algebraic(),
+                    take,
+                    self.to.into_algebraic(),
+                    promoted_to.as_char()
+                )
+            }
+            MoveType::LongCastle => "O-O-O".to_string(),
+            MoveType::ShortCastle => "O-O".to_string(),
+            MoveType::EnPassant => {
+                format!(
+                    "{}x{}",
+                    self.from.into_algebraic(),
+                    self.to.into_algebraic()
+                )
+            }
+        }
+    }
 }
 impl Display for Move {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
