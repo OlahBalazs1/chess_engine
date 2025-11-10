@@ -139,9 +139,6 @@ pub(crate) const fn get_raw_positional(piece: Piece, pos: Position) -> i64 {
 }
 pub(crate) fn rate_move(mov: &Move, who_to_move: Side) -> i64 {
     let piece = mov.piece_type().with_side(who_to_move);
-    // accounts for color
-    // good for black -> negative
-    // good for white -> positive
     match mov.move_type {
         MoveType::Normal(_) => {
             let mut eval = 0;
