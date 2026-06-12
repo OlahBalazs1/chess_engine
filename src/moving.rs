@@ -16,8 +16,17 @@ pub enum MoveType {
     ShortCastle,
     EnPassant,
 }
-pub struct Unmove<'a> {
-    pub mov: &'a Move,
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct Move {
+    pub move_type: MoveType,
+    pub from: Position,
+    pub to: Position,
+    pub take: Option<Piece>,
+}
+
+pub struct Unmove {
+    pub mov: Move,
     pub en_passant_square: Option<Position>,
     pub white_castling: (bool, bool),
     pub black_castling: (bool, bool),
@@ -25,8 +34,8 @@ pub struct Unmove<'a> {
     pub halfmove_clock: u8,
 }
 
-impl<'a> Unmove<'a> {
-    pub fn new(mov: &'a Move, state: &SearchBoard) -> Self {
+impl Unmove {
+    pub fn new(mov: Move, state: &SearchBoard) -> Self {
         Self {
             mov,
             en_passant_square: state.state.en_passant_square,
@@ -38,13 +47,6 @@ impl<'a> Unmove<'a> {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub struct Move {
-    pub move_type: MoveType,
-    pub from: Position,
-    pub to: Position,
-    pub take: Option<Piece>,
-}
 impl Hash for Move {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         debug_assert!(mem::size_of::<Move>() <= 8);

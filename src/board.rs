@@ -1,7 +1,7 @@
 use std::fmt::{Debug, Display};
 use std::hash::Hash;
-use std::mem;
 use std::ops::{Deref, DerefMut};
+use std::{mem, thread};
 
 use crate::board_repr::*;
 use crate::magic_bitboards::MAGIC_MOVER;

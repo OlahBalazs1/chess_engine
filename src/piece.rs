@@ -69,6 +69,58 @@ impl Piece {
     pub const fn side(self) -> Side {
         self.side
     }
+    pub fn as_char(self) -> char {
+        match self {
+            Piece {
+                side: White,
+                piece_type: Pawn,
+            } => 'p',
+            Piece {
+                side: White,
+                piece_type: Rook,
+            } => 'r',
+            Piece {
+                side: White,
+                piece_type: Knight,
+            } => 'n',
+            Piece {
+                side: White,
+                piece_type: Bishop,
+            } => 'b',
+            Piece {
+                side: White,
+                piece_type: Queen,
+            } => 'q',
+            Piece {
+                side: White,
+                piece_type: King,
+            } => 'k',
+            Piece {
+                side: Black,
+                piece_type: Pawn,
+            } => 'P',
+            Piece {
+                side: Black,
+                piece_type: Rook,
+            } => 'R',
+            Piece {
+                side: Black,
+                piece_type: Knight,
+            } => 'N',
+            Piece {
+                side: Black,
+                piece_type: Bishop,
+            } => 'B',
+            Piece {
+                side: Black,
+                piece_type: Queen,
+            } => 'Q',
+            Piece {
+                side: Black,
+                piece_type: King,
+            } => 'K',
+        }
+    }
     pub fn as_u8(self) -> u8 {
         (self.side as u8) + (self.piece_type as u8)
     }

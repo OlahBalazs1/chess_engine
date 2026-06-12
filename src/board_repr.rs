@@ -1,10 +1,20 @@
-use std::ops::{Index, IndexMut};
+use std::{
+    io::{BufWriter, Stdout, Write, stdout},
+    ops::{Index, IndexMut},
+};
 
 use crate::{
-    piece::{Piece, PieceType, Side},
+    piece::{
+        Piece, PieceType,
+        Side::{self, White},
+    },
     position::Position,
 };
 use PieceType::*;
+use owo_colors::{
+    AnsiColors, OwoColorize,
+    colors::{self, Black, Red},
+};
 
 pub const PAWN: usize = 0;
 pub const ROOK: usize = 1;
@@ -139,4 +149,45 @@ impl Index<usize> for BoardRepr {
     fn index(&self, index: usize) -> &Self::Output {
         &self.board[index]
     }
+}
+
+pub fn print_board(board: &BoardRepr) {
+    let mut stdout = BufWriter::new(stdout());
+    for row in (0usize..8).rev() {
+        write!(
+            stdout,
+            "{}",
+            ((b'a' + row as u8) as char).fg::<Red>().bg::<Black>()
+        )
+        .unwrap();
+
+        for col in 0..8 {
+            let (fg, bg) = if (row + col) % 2 == 0 {
+                (AnsiColors::Black, AnsiColors::White)
+            } else {
+                (AnsiColors::White, AnsiColors::Black)
+            };
+
+            write!(
+                stdout,
+                "{}{}",
+                " ".color(fg).on_color(bg),
+                board[row * 8 + col]
+                    .map(|e| e.as_char())
+                    .unwrap_or(' ')
+                    .color(fg)
+                    .on_color(bg)
+            )
+            .unwrap();
+        }
+        write!(stdout, "\n").unwrap();
+    }
+    write!(stdout, "{}", " ".bg::<Black>()).unwrap();
+    for col in 1..9 {
+        write!(stdout, "{}", format!(" {}", col).fg::<Red>().bg::<Black>()).unwrap();
+    }
+
+    stdout.write(b"\n").unwrap();
+
+    stdout.flush().unwrap();
 }

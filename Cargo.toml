@@ -17,3 +17,10 @@ rayon = "1.11.0"
 [profile.release]
 debug = "line-tables-only"
 lto = "fat"
+
+
+[profile.dev]
+opt-level = 3
+
+[profile.dev.dependencies."*"]
+opt-level = 3

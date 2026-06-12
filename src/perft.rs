@@ -58,7 +58,7 @@ fn perft_search<const N: usize>(
 
     for mov in moves {
         results[N - depth].add_normal(mov);
-        let unmove = Unmove::new(&mov, board);
+        let unmove = Unmove::new(mov, board);
         // let board_copy = board.clone();
         board.make(&mov);
 

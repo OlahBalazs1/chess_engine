@@ -8,7 +8,9 @@ use crate::{
             PAWN_VALUE, POSITIONAL_WEIGHT, QUEEN_POSITIONAL, QUEEN_VALUE, ROOK_POSITIONAL,
             ROOK_VALUE,
         },
-        is_draw_repetition, who2move,
+        is_draw_repetition,
+        searcher::SearchContext,
+        who2move,
     },
     moving::{Move, MoveType},
     piece::{Piece, PieceType, Side},
@@ -16,17 +18,19 @@ use crate::{
 };
 use PieceType::*;
 
-pub fn evaluate(board: &SearchBoard, repetitions: &RepetitionHashmap) -> i64 {
-    let (pin_state, check_paths) = board.legal_data();
+pub fn evaluate(ctx: &SearchContext) -> i64 {
+    let (pin_state, check_paths) = ctx.board.legal_data();
     let is_check = check_paths.is_check();
-    let moves = board.find_all_moves(pin_state, check_paths.clone());
+    let moves = ctx.board.find_all_moves(pin_state, check_paths.clone());
 
-    match outcome(board, !moves.is_empty(), is_check, repetitions) {
-        Outcome::Ongoing => eval_score(board) + side_dependent_eval(board, is_check, &moves),
-        Outcome::WhiteWon => i64::MAX,
-        Outcome::BlackWon => i64::MIN,
+    (match outcome(&ctx.board, !moves.is_empty(), is_check, &ctx.repetitions) {
+        Outcome::Ongoing => {
+            eval_score(&ctx.board) + side_dependent_eval(&ctx.board, is_check, &moves)
+        }
+        Outcome::WhiteWon => i64::MAX - 1,
+        Outcome::BlackWon => i64::MIN + 1,
         Outcome::Stalemate => 0,
-    }
+    }) * who2move(ctx.board.side())
 }
 
 pub fn eval_score(board: &SearchBoard) -> i64 {
@@ -49,13 +53,14 @@ pub fn eval_score(board: &SearchBoard) -> i64 {
 }
 
 pub fn side_dependent_eval(board: &SearchBoard, is_check: bool, moves: &[Move]) -> i64 {
-    let mut eval = 0;
-    eval += moves.len().isqrt() as i64 * MOBILITY_WEIGHT;
-    if is_check {
-        eval -= 10 * CHECK_WEIGHT;
-    }
+    return 0;
+    // let mut eval = 0;
+    // eval += moves.len().isqrt() as i64 * MOBILITY_WEIGHT;
+    // if is_check {
+    //     eval -= 10 * CHECK_WEIGHT;
+    // }
 
-    eval * who2move(board.side()) as i64
+    // eval * who2move(board.side()) as i64
 }
 
 pub fn outcome(
@@ -137,7 +142,7 @@ pub(crate) const fn get_raw_positional(piece: Piece, pos: Position) -> i64 {
         King => KING_POSITIONAL,
     })[lookup_pos.index() as usize]
 }
-pub(crate) fn rate_move(mov: &Move, who_to_move: Side) -> i64 {
+pub(super) fn rate_move(mov: &Move, who_to_move: Side) -> i64 {
     let piece = mov.piece_type().with_side(who_to_move);
     match mov.move_type {
         MoveType::Normal(_) => {

@@ -20,12 +20,9 @@ pub mod zobrist;
 pub mod ffi;
 
 pub use crate::util::pseudo_moving;
-use crate::{
-    board::SearchBoard,
-    engine::play::{autoplay, autoplay_single_threaded},
-};
+use crate::{board::SearchBoard, engine::play::Game, perft::test_unmake};
 
 fn main() {
-    let board = SearchBoard::default();
-    autoplay(4, board);
+    let mut game = Game::default();
+    game.autoplay(5);
 }
