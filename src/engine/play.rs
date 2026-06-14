@@ -1,3 +1,4 @@
+use rayon::prelude::*;
 use std::{
     alloc::System,
     cmp,
@@ -103,7 +104,7 @@ impl Game {
         let moves = self.board.find_all_moves(pin_state, check_paths);
 
         let mut evals = moves
-            .into_iter()
+            .into_par_iter()
             .map(|e| {
                 let mut ctx = SearchContext::new(self.board.clone(), self.repetitions.clone(), e);
                 ctx.evaluate(depth, depth)
@@ -133,6 +134,8 @@ impl Game {
                     .unwrap_or(Duration::from_secs(0)),
             );
         }
+
+        print_board(&self.board.board);
 
         return self.last_move_outcome;
     }

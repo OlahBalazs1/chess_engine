@@ -54,14 +54,12 @@ impl SearchContext {
 
     fn evaluate_inner(&mut self, depth: i32, mut alpha: i64, beta: i64) -> i64 {
         if depth == 0 {
-            return evaluate(self);
-            // return self.quiesce(-beta, -alpha, 0);
-            // return evaluate(&self.board);
+            return self.quiesce(-beta, -alpha, 0);
         }
         let (pin_state, check_paths) = self.board().legal_data();
         let is_check = check_paths.is_check();
         let mut moves = self.board().find_all_moves(pin_state, check_paths);
-        moves.sort_by_cached_key(|mov| -rate_move(mov, self.board().side()));
+        // moves.sort_by_cached_key(|mov| -rate_move(mov, self.board().side()));
         let mut eval = i64::MIN + 1;
 
         if let Some(eval) = evaluate_outcome(self, !moves.is_empty(), is_check, depth) {
@@ -95,54 +93,45 @@ impl SearchContext {
         eval
     }
 
-    // fn quiesce(&mut self, mut alpha: i64, beta: i64, descended: i32) -> i64 {
-    //     if descended == self.quiescence_depth_limit {
-    //         return evaluate(self);
-    //     }
+    fn quiesce(&mut self, mut alpha: i64, beta: i64, descended: i32) -> i64 {
+        if descended == self.quiescence_depth_limit {
+            return evaluate(self);
+        }
+        let (pin_state, check_paths) = self.board().legal_data();
+        let is_check = check_paths.is_check();
+        let mut moves = self.board().find_all_moves(pin_state, check_paths);
+        moves.retain(|e| e.take.is_some());
+        // moves.sort_by_cached_key(|mov| -rate_move(mov, self.board().side()));
+        let mut eval = i64::MIN + 1;
 
-    //     let mut eval = i64::MIN + 1;
-    //     let (pin_state, check_paths) = self.board().legal_data();
-    //     let in_check = check_paths.is_check();
-    //     let mut moves = self.board().find_all_moves(pin_state, check_paths);
-    //     moves.retain(|e| e.take.is_some());
-    //     moves.sort_by_cached_key(|mov| -rate_move(mov, self.board().side()));
+        if let Some(eval) = evaluate_outcome(self, !moves.is_empty(), is_check, -descended) {
+            return eval;
+        }
 
-    //     if moves.is_empty() {
-    //         if in_check {
-    //             return i64::MIN + 1;
-    //         } else {
-    //             return 0;
-    //         }
-    //     }
+        for mov in moves {
+            let unmake = Unmove::new(mov, &self.board());
+            self.board.make(&mov);
+            let repetition = self.repetitions.entry(self.board().zobrist).or_insert(0);
+            *repetition += 1;
 
-    //     for mov in moves {
-    //         if mov.take.is_none() {
-    //             continue;
-    //         }
-    //         let unmake = Unmove::new(mov, &self.board());
-    //         self.board.make(&mov);
-    //         let repetition = self.repetitions.entry(self.board().zobrist).or_insert(0);
-    //         *repetition += 1;
+            if *repetition == 2 {
+                *repetition -= 1;
+                self.board.unmake(unmake);
+                return 0;
+            }
+            let score = -self.quiesce(-beta, -alpha, descended + 1);
+            eval = cmp::max(score, eval);
+            alpha = cmp::max(alpha, eval);
 
-    //         if *repetition == 2 {
-    //             *repetition -= 1;
-    //             self.board.unmake(unmake);
-    //             return 0;
-    //         }
-    //         let score = self.quiesce(-beta, -alpha, descended + 1);
-    //         eval = cmp::max(score, eval);
-    //         alpha = cmp::max(alpha, eval);
+            // rebind it because of the borrow checker
+            let repetition = self.repetitions.entry(self.board().zobrist).or_insert(0);
+            *repetition -= 1;
+            self.board.unmake(unmake);
 
-    //         // rebind it because of the borrow checker
-    //         let repetition = self.repetitions.entry(self.board().zobrist).or_insert(0);
-    //         *repetition -= 1;
-    //         self.board.unmake(unmake);
-
-    //         if eval >= beta {
-    //             return eval;
-    //         }
-    //     }
-
-    //     eval
-    // }
+            if eval >= beta {
+                return eval;
+            }
+        }
+        eval
+    }
 }
