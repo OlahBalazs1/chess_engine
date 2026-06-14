@@ -30,7 +30,7 @@ use crate::{
 
 fn main() {
     let mut game = Game::default();
-    game.autoplay(5);
+    game.autoplay(6);
 }
 
 #[cfg(test)]

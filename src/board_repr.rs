@@ -1,6 +1,6 @@
 use std::{
     io::{BufWriter, Stdout, Write, stdout},
-    ops::{Index, IndexMut},
+    ops::{Add, Index, IndexMut},
 };
 
 use crate::{
@@ -154,12 +154,7 @@ impl Index<usize> for BoardRepr {
 pub fn print_board(board: &BoardRepr) {
     let mut stdout = BufWriter::new(stdout());
     for row in (0usize..8).rev() {
-        write!(
-            stdout,
-            "{}",
-            ((b'a' + row as u8) as char).fg::<Red>().bg::<Black>()
-        )
-        .unwrap();
+        write!(stdout, "{}", row.add(1).fg::<Red>().bg::<Black>()).unwrap();
 
         for col in 0..8 {
             let (fg, bg) = if (row + col) % 2 == 0 {
@@ -183,8 +178,15 @@ pub fn print_board(board: &BoardRepr) {
         write!(stdout, "\n").unwrap();
     }
     write!(stdout, "{}", " ".bg::<Black>()).unwrap();
-    for col in 1..9 {
-        write!(stdout, "{}", format!(" {}", col).fg::<Red>().bg::<Black>()).unwrap();
+    for col in 0..8 {
+        write!(
+            stdout,
+            "{}",
+            format!(" {}", (b'a' + col) as char)
+                .fg::<Red>()
+                .bg::<Black>()
+        )
+        .unwrap();
     }
 
     stdout.write(b"\n").unwrap();

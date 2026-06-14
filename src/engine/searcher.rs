@@ -35,7 +35,7 @@ impl SearchContext {
             board,
             repetitions,
             evaluated_move,
-            quiescence_depth_limit: 2,
+            quiescence_depth_limit: 3,
         }
     }
 
@@ -54,7 +54,7 @@ impl SearchContext {
 
     fn evaluate_inner(&mut self, depth: i32, mut alpha: i64, beta: i64) -> i64 {
         if depth == 0 {
-            return self.quiesce(-beta, -alpha, 0);
+            return evaluate(self);
         }
         let (pin_state, check_paths) = self.board().legal_data();
         let is_check = check_paths.is_check();
