@@ -19,18 +19,28 @@ use crate::{
 use PieceType::*;
 
 pub fn evaluate(ctx: &SearchContext) -> i64 {
-    let (pin_state, check_paths) = ctx.board.legal_data();
+    let (pin_state, check_paths) = ctx.board().legal_data();
     let is_check = check_paths.is_check();
-    let moves = ctx.board.find_all_moves(pin_state, check_paths.clone());
+    let moves = ctx.board().find_all_moves(pin_state, check_paths.clone());
+    return evaluate_outcome(ctx, !moves.is_empty(), is_check, 0).unwrap_or_else(|| {
+        eval_score(&ctx.board()) + side_dependent_eval(&ctx.board(), is_check, &moves)
+    });
+}
 
-    (match outcome(&ctx.board, !moves.is_empty(), is_check, &ctx.repetitions) {
-        Outcome::Ongoing => {
-            eval_score(&ctx.board) + side_dependent_eval(&ctx.board, is_check, &moves)
-        }
-        Outcome::WhiteWon => i64::MAX - 1,
-        Outcome::BlackWon => i64::MIN + 1,
-        Outcome::Stalemate => 0,
-    }) * who2move(ctx.board.side())
+pub fn evaluate_outcome(
+    ctx: &SearchContext,
+    are_there_moves: bool,
+    is_check: bool,
+    depth: i32,
+) -> Option<i64> {
+    Some(
+        match outcome(&ctx.board(), are_there_moves, is_check, &ctx.repetitions) {
+            Outcome::Ongoing => return None,
+            Outcome::WhiteWon => i64::MAX - 10000 + (100 * depth) as i64,
+            Outcome::BlackWon => i64::MIN + 10000 - (100 * depth) as i64,
+            Outcome::Stalemate => 0,
+        },
+    )
 }
 
 pub fn eval_score(board: &SearchBoard) -> i64 {
