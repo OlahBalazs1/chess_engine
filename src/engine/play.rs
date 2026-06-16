@@ -4,6 +4,7 @@ use std::{
     cmp,
     collections::HashMap,
     io::{Write, stdin, stdout},
+    ops::Index,
     time::{Duration, SystemTime},
 };
 
@@ -14,7 +15,7 @@ use crate::{
     board_repr::print_board,
     engine::{
         RepetitionHashmap, add_board_to_repetition,
-        evaluate::{Outcome, outcome},
+        evaluate::{Outcome, evaluate, outcome},
         is_draw_repetition,
         searcher::SearchContext,
         transposition_table::TranspositionTable,
@@ -38,7 +39,7 @@ impl Game {
 
         let (pin_state, check_paths) = board.legal_data();
         let is_check = check_paths.is_check();
-        let moves = board.find_all_moves(pin_state, check_paths);
+        let moves = board.find_all_moves(pin_state, check_paths, false);
 
         let outcome = outcome(&board, !moves.is_empty(), is_check, &repetitions);
         Self {
@@ -49,6 +50,9 @@ impl Game {
     }
     pub fn get_board(&self) -> &SearchBoard {
         &self.board
+    }
+    pub fn static_evaluate(&self) -> i64 {
+        return evaluate(&self.board, &self.repetitions, 0);
     }
     pub fn make_best_move(&mut self, depth: i32) -> Outcome {
         if self.last_move_outcome.is_game_over() {
@@ -73,7 +77,7 @@ impl Game {
             return Some(self.last_move_outcome);
         }
         let (pin_state, check_paths) = self.board.legal_data();
-        let legal_moves = self.board.find_all_moves(pin_state, check_paths);
+        let legal_moves = self.board.find_all_moves(pin_state, check_paths, false);
 
         if legal_moves.contains(mov) {
             self.board.make(&mov);
@@ -81,7 +85,7 @@ impl Game {
 
             let (pin_state, check_path) = self.board.legal_data();
             let is_check = check_path.is_check();
-            let moves = self.board.find_all_moves(pin_state, check_path);
+            let moves = self.board.find_all_moves(pin_state, check_path, false);
 
             let outcome = outcome(&self.board, !moves.is_empty(), is_check, &self.repetitions);
             self.last_move_outcome = outcome;
@@ -101,16 +105,21 @@ impl Game {
         }
 
         let (pin_state, check_paths) = self.board.legal_data();
-        let moves = self.board.find_all_moves(pin_state, check_paths);
+        let moves = self.board.find_all_moves(pin_state, check_paths, false);
 
         let mut evals = moves
             .into_par_iter()
             .map(|e| {
-                let mut ctx = SearchContext::new(self.board.clone(), self.repetitions.clone(), e);
+                let mut ctx = SearchContext::new(self.board.clone(), self.repetitions.clone(), *e);
                 ctx.evaluate(depth, depth)
             })
             .collect::<Vec<_>>();
         evals.sort_by_key(|(_, eval)| -eval);
+        for (mov, eval) in &evals {
+            println!("{eval}: {mov}");
+        }
+        let best_eval = evals.get(0)?.1;
+        evals.retain(|e| best_eval == e.1);
 
         Some(evals)
     }
@@ -119,12 +128,11 @@ impl Game {
         while !self.last_move_outcome.is_game_over() {
             print_board(&self.board.board);
             let start = SystemTime::now();
-            let (mov, _) = self.find_best_move(depth).unwrap();
+            let (mov, rating) = self.find_best_move(depth).unwrap();
             let move_duration = start.elapsed().unwrap();
             self.make_move(&mov);
             println!(
-                "made move {} in {} milliseconds",
-                mov,
+                "made move {mov} in {} milliseconds (rating: {rating})",
                 move_duration.as_millis()
             );
 

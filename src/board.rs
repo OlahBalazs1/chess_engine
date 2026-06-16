@@ -4,6 +4,7 @@ use std::ops::{Deref, DerefMut};
 use std::{mem, thread};
 
 use crate::board_repr::*;
+use crate::engine::evaluate::eval_score;
 use crate::magic_bitboards::MAGIC_MOVER;
 use crate::moving::{Move, MoveType, Unmove};
 use crate::piece::{Piece, PieceType, Side};
@@ -13,6 +14,7 @@ use crate::search_masks::{KING_MASKS, KNIGHT_MASKS, choose_home_rook, choose_paw
 use crate::zobrist::*;
 
 use PieceType::*;
+use arrayvec::ArrayVec;
 
 // TODO: Avoid deref polymorphism
 #[derive(Clone, PartialEq)]
@@ -32,9 +34,14 @@ macro_rules! enemies {
 }
 
 impl SearchBoard {
-    pub fn find_all_moves(&self, pin_state: PinState, check_paths: CheckPath) -> Vec<Move> {
+    pub fn find_all_moves(
+        &self,
+        pin_state: PinState,
+        check_paths: CheckPath,
+        gen_only_takes: bool,
+    ) -> ArrayVec<Move, 219> {
         use crate::search::*;
-        let mut moves = Vec::with_capacity(219);
+        let mut moves: ArrayVec<Move, 219> = ArrayVec::new();
         let enemy = self.side().opposite();
         let mut attacked_squares = 0;
         let all = (self.white.combined() | self.black.combined())
@@ -44,11 +51,46 @@ impl SearchBoard {
             if let Some(piece) = self.board.board[*pos as usize] {
                 if self.side() == piece.side() {
                     match piece.piece_type {
-                        Pawn => find_pawn(&mut moves, pos, self, &pin_state, &check_paths),
-                        Rook => find_rook(&mut moves, pos, self, &pin_state, &check_paths),
-                        Knight => find_knight(&mut moves, pos, self, &pin_state, &check_paths),
-                        Bishop => find_bishop(&mut moves, pos, self, &pin_state, &check_paths),
-                        Queen => find_queen(&mut moves, pos, self, &pin_state, &check_paths),
+                        Pawn => find_pawn(
+                            &mut moves,
+                            pos,
+                            self,
+                            &pin_state,
+                            &check_paths,
+                            gen_only_takes,
+                        ),
+                        Rook => find_rook(
+                            &mut moves,
+                            pos,
+                            self,
+                            &pin_state,
+                            &check_paths,
+                            gen_only_takes,
+                        ),
+                        Knight => find_knight(
+                            &mut moves,
+                            pos,
+                            self,
+                            &pin_state,
+                            &check_paths,
+                            gen_only_takes,
+                        ),
+                        Bishop => find_bishop(
+                            &mut moves,
+                            pos,
+                            self,
+                            &pin_state,
+                            &check_paths,
+                            gen_only_takes,
+                        ),
+                        Queen => find_queen(
+                            &mut moves,
+                            pos,
+                            self,
+                            &pin_state,
+                            &check_paths,
+                            gen_only_takes,
+                        ),
                         _ => {}
                     };
                 } else {
@@ -72,6 +114,7 @@ impl SearchBoard {
             self,
             &check_paths,
             attacked_squares,
+            gen_only_takes,
         );
         moves
     }

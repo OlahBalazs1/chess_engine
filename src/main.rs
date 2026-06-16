@@ -6,7 +6,9 @@ pub mod hashers;
 pub mod magic_bitboards;
 pub mod moving;
 #[allow(dead_code)]
+#[cfg(feature = "perft")]
 pub mod perft;
+#[cfg(feature = "perft")]
 pub mod perft_data;
 pub mod piece;
 pub mod position;
@@ -24,13 +26,23 @@ use crate::{
     board::SearchBoard,
     engine::{evaluate::Outcome, play::Game},
     moving::{Move, MoveType},
-    perft::test_unmake,
     position::Position,
 };
 
 fn main() {
-    let mut game = Game::default();
-    game.autoplay(6);
+    #[cfg(feature = "perft")]
+    {
+        use crate::perft::test;
+
+        test::<6>();
+    }
+    #[cfg(not(feature = "perft"))]
+    {
+        let mut game = Game::default();
+        // game.make_move(&Move::from_string(&game.get_board().state, "a2 a3").unwrap());
+        // game.make_move(&Move::from_string(&game.get_board().state, "a7 a6").unwrap());
+        game.autoplay(6);
+    }
 }
 
 #[cfg(test)]
@@ -44,7 +56,10 @@ mod tests {
     #[test]
     fn white_mate_in_one() {
         let mut game = Game::from_fen("8/8/8/3K4/7k/8/6R1/5R2 w - - 0 1");
-        let moves: Vec<_> = game.find_best_moves(3).unwrap();
+        let moves: Vec<_> = game.find_best_moves(1).unwrap();
+        for (mov, eval) in &moves {
+            println!("{}: {}", eval, mov);
+        }
         let moves: Vec<_> = moves.into_iter().map(|e| e.0).collect();
 
         let stockfish_move = Move::new(
@@ -54,14 +69,17 @@ mod tests {
             None,
         );
         assert!(moves.contains(&stockfish_move));
-        let outcome = game.make_best_move(3);
+        let outcome = game.make_best_move(1);
         assert_eq!(outcome, Outcome::WhiteWon);
     }
 
     #[test]
     fn black_mate_in_one() {
         let mut game = Game::from_fen("8/8/8/3k4/7K/8/6r1/5r2 b - - 0 1");
-        let moves: Vec<_> = game.find_best_moves(3).unwrap();
+        let moves: Vec<_> = game.find_best_moves(1).unwrap();
+        for (mov, eval) in &moves {
+            println!("{}: {}", eval, mov);
+        }
         let moves: Vec<_> = moves.into_iter().map(|e| e.0).collect();
 
         let stockfish_move = Move::new(
@@ -71,20 +89,24 @@ mod tests {
             None,
         );
         assert!(moves.contains(&stockfish_move));
-        let outcome = game.make_best_move(3);
+        println!("{}", moves[0]);
+        let outcome = game.make_best_move(1);
         assert_eq!(outcome, Outcome::BlackWon);
     }
 
     #[test]
     fn white_block_mate_in_one() {
-        let mut game = Game::from_fen("7k/8/6r1/K7/6rr/8/8/1R6 w - - 0 1");
-        let moves: Vec<_> = game.find_best_moves(5).unwrap();
+        let mut game = Game::from_fen("7k/8/3B4/8/5q2/6q1/8/7K w - - 0 1");
+        let moves: Vec<_> = game.find_best_moves(4).unwrap();
+        for (mov, eval) in &moves {
+            println!("{}: {}", eval, mov);
+        }
         let moves: Vec<_> = moves.into_iter().map(|e| e.0).collect();
 
         let stockfish_move = Move::new(
-            Position::from_str("b1").unwrap(),
-            Position::from_str("b5").unwrap(),
-            MoveType::Normal(crate::piece::PieceType::Rook),
+            Position::from_str("d6").unwrap(),
+            Position::from_str("e5").unwrap(),
+            MoveType::Normal(crate::piece::PieceType::Bishop),
             None,
         );
         assert!(moves.contains(&stockfish_move));
@@ -92,15 +114,18 @@ mod tests {
 
     #[test]
     fn black_block_mate_in_one() {
-        let mut game = Game::from_fen("7K/8/6R1/k7/6RR/8/8/1r6 b - - 0 1");
+        let mut game = Game::from_fen("7K/8/3b4/8/5Q2/6Q1/8/7k b - - 0 1");
         let moves: Vec<_> = game.find_best_moves(5).unwrap();
-        println!("{:#?}", &moves[..5]);
+        // println!("{:#?}", &moves[..5]);
+        for (mov, eval) in &moves {
+            println!("{}: {}", eval, mov);
+        }
         let moves: Vec<_> = moves.into_iter().map(|e| e.0).collect();
 
         let stockfish_move = Move::new(
-            Position::from_str("b1").unwrap(),
-            Position::from_str("b5").unwrap(),
-            MoveType::Normal(crate::piece::PieceType::Rook),
+            Position::from_str("d6").unwrap(),
+            Position::from_str("e5").unwrap(),
+            MoveType::Normal(crate::piece::PieceType::Bishop),
             None,
         );
         assert!(moves.contains(&stockfish_move));

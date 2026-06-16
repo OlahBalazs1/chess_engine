@@ -1,5 +1,6 @@
 use crate::{
     board::SearchBoard,
+    board_repr::{BISHOP, KNIGHT, PAWN, QUEEN, ROOK},
     engine::{
         RepetitionHashmap,
         constants::{
@@ -18,33 +19,58 @@ use crate::{
 };
 use PieceType::*;
 
-pub fn evaluate(ctx: &SearchContext) -> i64 {
-    let (pin_state, check_paths) = ctx.board().legal_data();
+pub fn evaluate(board: &SearchBoard, repetitions: &RepetitionHashmap, depth: i32) -> i64 {
+    let (pin_state, check_paths) = board.legal_data();
     let is_check = check_paths.is_check();
-    let moves = ctx.board().find_all_moves(pin_state, check_paths.clone());
-    return evaluate_outcome(ctx, !moves.is_empty(), is_check, 0).unwrap_or_else(|| {
-        eval_score(&ctx.board()) + side_dependent_eval(&ctx.board(), is_check, &moves)
-    });
+    let moves = board.find_all_moves(pin_state, check_paths, false);
+
+    let mut side_dependent = eval_score(board);
+    side_dependent += eval_material(board);
+
+    let mut side_agnostic = moves.len() as i64;
+    side_agnostic -= if is_check { 10 } else { 0 };
+
+    if let Some(outcome) = evaluate_outcome(board, repetitions, !moves.is_empty(), is_check, depth)
+    {
+        return -outcome.abs();
+    }
+
+    return side_dependent * if board.side() == Side::White { 1 } else { -1 } + side_agnostic;
 }
 
 pub fn evaluate_outcome(
-    ctx: &SearchContext,
+    board: &SearchBoard,
+    repetitions: &RepetitionHashmap,
     are_there_moves: bool,
     is_check: bool,
     depth: i32,
 ) -> Option<i64> {
     Some(
-        match outcome(&ctx.board(), are_there_moves, is_check, &ctx.repetitions) {
+        match outcome(&board, are_there_moves, is_check, &repetitions) {
             Outcome::Ongoing => return None,
             Outcome::WhiteWon => i64::MAX - 10000 + (100 * depth) as i64,
             Outcome::BlackWon => i64::MIN + 10000 - (100 * depth) as i64,
-            Outcome::Stalemate => 0,
+            Outcome::Stalemate => -1000,
         },
     )
 }
+pub fn eval_material(board: &SearchBoard) -> i64 {
+    let mut eval = 0;
+    eval += board.side_bitboards(Side::White)[PAWN].count_ones() as i64 * PAWN_VALUE;
+    eval += board.side_bitboards(Side::White)[ROOK].count_ones() as i64 * ROOK_VALUE;
+    eval += board.side_bitboards(Side::White)[KNIGHT].count_ones() as i64 * KNIGHT_VALUE;
+    eval += board.side_bitboards(Side::White)[BISHOP].count_ones() as i64 * BISHOP_VALUE;
+    eval += board.side_bitboards(Side::White)[QUEEN].count_ones() as i64 * QUEEN_VALUE;
+    eval -= board.side_bitboards(Side::Black)[PAWN].count_ones() as i64 * PAWN_VALUE;
+    eval -= board.side_bitboards(Side::Black)[ROOK].count_ones() as i64 * ROOK_VALUE;
+    eval -= board.side_bitboards(Side::Black)[KNIGHT].count_ones() as i64 * KNIGHT_VALUE;
+    eval -= board.side_bitboards(Side::Black)[BISHOP].count_ones() as i64 * BISHOP_VALUE;
+    eval -= board.side_bitboards(Side::Black)[QUEEN].count_ones() as i64 * QUEEN_VALUE;
+
+    eval * MATERIAL_WEIGHT
+}
 
 pub fn eval_score(board: &SearchBoard) -> i64 {
-    let mut eval = 0;
     let mut positional = 0;
     for (index, piece) in board
         .board
@@ -56,21 +82,8 @@ pub fn eval_score(board: &SearchBoard) -> i64 {
     {
         let pos = Position::from_index(index as u8);
         positional += get_raw_positional(piece, pos) * who2move(piece.side());
-
-        eval += get_material(piece);
     }
-    eval + (positional * POSITIONAL_WEIGHT)
-}
-
-pub fn side_dependent_eval(board: &SearchBoard, is_check: bool, moves: &[Move]) -> i64 {
-    return 0;
-    // let mut eval = 0;
-    // eval += moves.len().isqrt() as i64 * MOBILITY_WEIGHT;
-    // if is_check {
-    //     eval -= 10 * CHECK_WEIGHT;
-    // }
-
-    // eval * who2move(board.side()) as i64
+    positional * POSITIONAL_WEIGHT
 }
 
 pub fn outcome(

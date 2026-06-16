@@ -7,7 +7,7 @@ use crate::{board::SearchBoard, engine::searcher::SearchContext, moving::Move, p
 pub mod constants;
 #[allow(dead_code)]
 pub mod evaluate;
-pub mod negamax;
+// pub mod negamax;
 #[allow(dead_code)]
 pub mod play;
 pub mod searcher;

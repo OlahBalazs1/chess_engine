@@ -1,4 +1,4 @@
-use std::{cmp, collections::HashMap};
+use std::{cmp, collections::HashMap, hint::black_box};
 
 use nohash_hasher::BuildNoHashHasher;
 
@@ -7,10 +7,9 @@ use crate::{
     engine::{
         RepetitionHashmap,
         evaluate::{Outcome, evaluate, evaluate_outcome, outcome, rate_move},
-        negamax::{self, negamax},
         who2move,
     },
-    moving::{Move, Unmove},
+    moving::{Move, MoveType, Unmove},
 };
 
 #[derive(Clone)]
@@ -35,7 +34,7 @@ impl SearchContext {
             board,
             repetitions,
             evaluated_move,
-            quiescence_depth_limit: 3,
+            quiescence_depth_limit: 2,
         }
     }
 
@@ -44,26 +43,31 @@ impl SearchContext {
     }
 
     pub fn evaluate(&mut self, min_depth: i32, max_depth: i32) -> (Move, i64) {
-        let eval = self.evaluate_inner(min_depth, i64::MIN + 1, i64::MAX - 1);
+        let eval = self.evaluate_inner(min_depth, i64::MIN + 1, i64::MAX);
 
-        return (
-            self.evaluated_move,
-            eval * who2move(self.board().side().opposite()),
-        );
+        return (self.evaluated_move, -eval);
     }
 
     fn evaluate_inner(&mut self, depth: i32, mut alpha: i64, beta: i64) -> i64 {
         if depth == 0 {
-            return evaluate(self);
+            return self.quiesce(alpha, beta, 0);
         }
         let (pin_state, check_paths) = self.board().legal_data();
         let is_check = check_paths.is_check();
-        let mut moves = self.board().find_all_moves(pin_state, check_paths);
-        // moves.sort_by_cached_key(|mov| -rate_move(mov, self.board().side()));
+        let mut moves = self.board().find_all_moves(pin_state, check_paths, false);
+        moves.sort_by_cached_key(|mov| -rate_move(mov, self.board().side()));
         let mut eval = i64::MIN + 1;
 
-        if let Some(eval) = evaluate_outcome(self, !moves.is_empty(), is_check, depth) {
-            return eval;
+        if let Some(eval) = evaluate_outcome(
+            self.board(),
+            &self.repetitions,
+            !moves.is_empty(),
+            is_check,
+            depth,
+        ) {
+            let eval = eval;
+            // this code runs when the side to play is checkmated -> negative
+            return -eval.abs();
         }
 
         for mov in moves {
@@ -72,7 +76,7 @@ impl SearchContext {
             let repetition = self.repetitions.entry(self.board().zobrist).or_insert(0);
             *repetition += 1;
 
-            if *repetition == 2 {
+            if *repetition > 1 {
                 *repetition -= 1;
                 self.board.unmake(unmake);
                 return 0;
@@ -95,17 +99,24 @@ impl SearchContext {
 
     fn quiesce(&mut self, mut alpha: i64, beta: i64, descended: i32) -> i64 {
         if descended == self.quiescence_depth_limit {
-            return evaluate(self);
+            return evaluate(self.board(), &self.repetitions, 0);
         }
         let (pin_state, check_paths) = self.board().legal_data();
         let is_check = check_paths.is_check();
-        let mut moves = self.board().find_all_moves(pin_state, check_paths);
-        moves.retain(|e| e.take.is_some());
-        // moves.sort_by_cached_key(|mov| -rate_move(mov, self.board().side()));
+        let mut moves = self.board().find_all_moves(pin_state, check_paths, true);
+        moves.sort_by_cached_key(|mov| -rate_move(mov, self.board().side()));
         let mut eval = i64::MIN + 1;
 
-        if let Some(eval) = evaluate_outcome(self, !moves.is_empty(), is_check, -descended) {
-            return eval;
+        if let Some(eval) = evaluate_outcome(
+            self.board(),
+            &self.repetitions,
+            !moves.is_empty(),
+            is_check,
+            -descended,
+        ) {
+            let eval = eval;
+            // this code runs when the side to play is checkmated -> negative
+            return -eval.abs();
         }
 
         for mov in moves {
@@ -114,7 +125,7 @@ impl SearchContext {
             let repetition = self.repetitions.entry(self.board().zobrist).or_insert(0);
             *repetition += 1;
 
-            if *repetition == 2 {
+            if *repetition > 1 {
                 *repetition -= 1;
                 self.board.unmake(unmake);
                 return 0;
