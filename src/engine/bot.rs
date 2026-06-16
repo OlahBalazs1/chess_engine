@@ -17,13 +17,13 @@ use crate::{
     moving::Move,
 };
 
-pub struct Game {
+pub struct Bot {
     board: SearchBoard,
     repetitions: RepetitionHashmap,
     last_move_outcome: Outcome,
 }
 
-impl Game {
+impl Bot {
     pub fn from_fen(fen: &str) -> Self {
         let board = SearchBoard::from_fen(fen);
         let repetitions = HashMap::with_hasher(BuildNoHashHasher::new());
@@ -144,7 +144,7 @@ impl Game {
     }
 }
 
-impl Default for Game {
+impl Default for Bot {
     fn default() -> Self {
         Self {
             board: SearchBoard::default(),

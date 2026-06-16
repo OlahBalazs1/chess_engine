@@ -15,14 +15,15 @@ pub mod position;
 pub mod search;
 pub mod search_data;
 pub mod search_masks;
+pub mod uci;
 pub mod util;
 pub mod zobrist;
 
 #[cfg(feature = "ffi")]
 pub mod ffi;
 
+use crate::engine::bot::Bot;
 pub use crate::util::pseudo_moving;
-use crate::engine::play::Game;
 
 fn main() {
     #[cfg(feature = "perft")]
@@ -33,7 +34,7 @@ fn main() {
     }
     #[cfg(not(feature = "perft"))]
     {
-        let mut game = Game::default();
+        let mut game = Bot::default();
         // game.make_move(&Move::from_string(&game.get_board().state, "a2 a3").unwrap());
         // game.make_move(&Move::from_string(&game.get_board().state, "a7 a6").unwrap());
         game.autoplay(6);
@@ -43,14 +44,14 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use crate::{
-        engine::{evaluate::Outcome, play::Game},
+        engine::{bot::Bot, evaluate::Outcome},
         moving::{Move, MoveType},
         position::Position,
     };
 
     #[test]
     fn white_mate_in_one() {
-        let mut game = Game::from_fen("8/8/8/3K4/7k/8/6R1/5R2 w - - 0 1");
+        let mut game = Bot::from_fen("8/8/8/3K4/7k/8/6R1/5R2 w - - 0 1");
         let moves: Vec<_> = game.find_best_moves(1).unwrap();
         for (mov, eval) in &moves {
             println!("{}: {}", eval, mov);
@@ -70,7 +71,7 @@ mod tests {
 
     #[test]
     fn black_mate_in_one() {
-        let mut game = Game::from_fen("8/8/8/3k4/7K/8/6r1/5r2 b - - 0 1");
+        let mut game = Bot::from_fen("8/8/8/3k4/7K/8/6r1/5r2 b - - 0 1");
         let moves: Vec<_> = game.find_best_moves(1).unwrap();
         for (mov, eval) in &moves {
             println!("{}: {}", eval, mov);
@@ -91,7 +92,7 @@ mod tests {
 
     #[test]
     fn white_block_mate_in_one() {
-        let mut game = Game::from_fen("7k/8/3B4/8/5q2/6q1/8/7K w - - 0 1");
+        let mut game = Bot::from_fen("7k/8/3B4/8/5q2/6q1/8/7K w - - 0 1");
         let moves: Vec<_> = game.find_best_moves(4).unwrap();
         for (mov, eval) in &moves {
             println!("{}: {}", eval, mov);
@@ -109,7 +110,7 @@ mod tests {
 
     #[test]
     fn black_block_mate_in_one() {
-        let mut game = Game::from_fen("7K/8/3b4/8/5Q2/6Q1/8/7k b - - 0 1");
+        let mut game = Bot::from_fen("7K/8/3b4/8/5Q2/6Q1/8/7k b - - 0 1");
         let moves: Vec<_> = game.find_best_moves(5).unwrap();
         // println!("{:#?}", &moves[..5]);
         for (mov, eval) in &moves {

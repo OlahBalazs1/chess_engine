@@ -9,9 +9,12 @@ pub mod constants;
 pub mod evaluate;
 // pub mod negamax;
 #[allow(dead_code)]
-pub mod play;
+pub mod bot;
 pub mod searcher;
 pub mod transposition_table;
+
+pub use bot::Bot;
+
 type ZobristHash = u64;
 type RepetitionHashmap = HashMap<ZobristHash, u8, BuildNoHashHasher<u64>>;
 

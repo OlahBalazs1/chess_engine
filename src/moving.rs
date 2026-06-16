@@ -3,6 +3,7 @@ use nohash_hasher::IsEnabled;
 use crate::board::{BoardState, SearchBoard};
 use crate::piece::{Piece, PieceType};
 use crate::position::Position;
+use std::fmt::Write;
 use std::fmt::{Debug, Display};
 use std::hash::Hash;
 use std::mem;
@@ -174,6 +175,17 @@ impl Move {
             to: end,
             take,
         })
+    }
+    pub fn into_long_algebraic(self) -> String {
+        let mut buf = String::new();
+
+        write!(buf, "{}{}", self.from, self.to).unwrap();
+
+        if let MoveType::Promotion(promoted_to) = self.move_type {
+            write!(buf, "{}", promoted_to.as_char().to_lowercase()).unwrap();
+        }
+
+        buf
     }
 
     pub fn into_algebraic(self) -> String {
