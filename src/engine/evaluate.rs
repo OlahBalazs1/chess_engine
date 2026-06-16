@@ -4,13 +4,12 @@ use crate::{
     engine::{
         RepetitionHashmap,
         constants::{
-            BISHOP_POSITIONAL, BISHOP_VALUE, CHECK_WEIGHT, KING_POSITIONAL, KING_VALUE,
-            KNIGHT_POSITIONAL, KNIGHT_VALUE, MATERIAL_WEIGHT, MOBILITY_WEIGHT, PAWN_POSITIONAL,
+            BISHOP_POSITIONAL, BISHOP_VALUE, KING_POSITIONAL, KING_VALUE,
+            KNIGHT_POSITIONAL, KNIGHT_VALUE, MATERIAL_WEIGHT, PAWN_POSITIONAL,
             PAWN_VALUE, POSITIONAL_WEIGHT, QUEEN_POSITIONAL, QUEEN_VALUE, ROOK_POSITIONAL,
             ROOK_VALUE,
         },
         is_draw_repetition,
-        searcher::SearchContext,
         who2move,
     },
     moving::{Move, MoveType},

@@ -1,15 +1,12 @@
-use std::{cmp, collections::HashMap, hint::black_box};
-
-use nohash_hasher::BuildNoHashHasher;
+use std::cmp;
 
 use crate::{
     board::SearchBoard,
     engine::{
         RepetitionHashmap,
-        evaluate::{Outcome, evaluate, evaluate_outcome, outcome, rate_move},
-        who2move,
+        evaluate::{evaluate, evaluate_outcome, rate_move},
     },
-    moving::{Move, MoveType, Unmove},
+    moving::{Move, Unmove},
 };
 
 #[derive(Clone)]
@@ -42,7 +39,7 @@ impl SearchContext {
         return &self.board;
     }
 
-    pub fn evaluate(&mut self, min_depth: i32, max_depth: i32) -> (Move, i64) {
+    pub fn evaluate(&mut self, min_depth: i32, _max_depth: i32) -> (Move, i64) {
         let eval = self.evaluate_inner(min_depth, i64::MIN + 1, i64::MAX);
 
         return (self.evaluated_move, -eval);

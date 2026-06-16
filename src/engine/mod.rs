@@ -2,7 +2,7 @@ use std::{collections::HashMap, ops::Deref};
 
 use nohash_hasher::BuildNoHashHasher;
 
-use crate::{board::SearchBoard, engine::searcher::SearchContext, moving::Move, piece::Side};
+use crate::{board::SearchBoard, moving::Move, piece::Side};
 
 pub mod constants;
 #[allow(dead_code)]

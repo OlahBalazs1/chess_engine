@@ -22,12 +22,7 @@ pub mod zobrist;
 pub mod ffi;
 
 pub use crate::util::pseudo_moving;
-use crate::{
-    board::SearchBoard,
-    engine::{evaluate::Outcome, play::Game},
-    moving::{Move, MoveType},
-    position::Position,
-};
+use crate::engine::play::Game;
 
 fn main() {
     #[cfg(feature = "perft")]

@@ -1,10 +1,6 @@
 use rayon::prelude::*;
 use std::{
-    alloc::System,
-    cmp,
     collections::HashMap,
-    io::{Write, stdin, stdout},
-    ops::Index,
     time::{Duration, SystemTime},
 };
 
@@ -16,14 +12,9 @@ use crate::{
     engine::{
         RepetitionHashmap, add_board_to_repetition,
         evaluate::{Outcome, evaluate, outcome},
-        is_draw_repetition,
         searcher::SearchContext,
-        transposition_table::TranspositionTable,
-        who2move,
     },
     moving::Move,
-    piece::Side,
-    util::pgn,
 };
 
 pub struct Game {

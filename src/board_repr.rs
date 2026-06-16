@@ -1,19 +1,19 @@
 use std::{
-    io::{BufWriter, Stdout, Write, stdout},
+    io::{BufWriter, Write, stdout},
     ops::{Add, Index, IndexMut},
 };
 
 use crate::{
     piece::{
         Piece, PieceType,
-        Side::{self, White},
+        Side::{self},
     },
     position::Position,
 };
 use PieceType::*;
 use owo_colors::{
     AnsiColors, OwoColorize,
-    colors::{self, Black, Red},
+    colors::{Black, Red},
 };
 
 pub const PAWN: usize = 0;

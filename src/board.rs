@@ -1,10 +1,9 @@
 use std::fmt::{Debug, Display};
 use std::hash::Hash;
 use std::ops::{Deref, DerefMut};
-use std::{mem, thread};
+use std::mem;
 
 use crate::board_repr::*;
-use crate::engine::evaluate::eval_score;
 use crate::magic_bitboards::MAGIC_MOVER;
 use crate::moving::{Move, MoveType, Unmove};
 use crate::piece::{Piece, PieceType, Side};
