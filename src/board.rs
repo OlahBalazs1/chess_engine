@@ -1,7 +1,7 @@
 use std::fmt::{Debug, Display};
 use std::hash::Hash;
-use std::ops::{Deref, DerefMut};
 use std::mem;
+use std::ops::{Deref, DerefMut};
 
 use crate::board_repr::*;
 use crate::magic_bitboards::MAGIC_MOVER;
@@ -109,7 +109,7 @@ impl SearchBoard {
         }
         find_king(
             &mut moves,
-            self.find_king(self.side()),
+            self.side_king(self.side()),
             self,
             &check_paths,
             attacked_squares,
