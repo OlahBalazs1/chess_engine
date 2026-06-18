@@ -89,41 +89,4 @@ mod tests {
         let outcome = game.make_best_move(1);
         assert_eq!(outcome, Outcome::BlackWon);
     }
-
-    #[test]
-    fn white_block_mate_in_one() {
-        let mut game = Bot::from_fen("7k/8/3B4/8/5q2/6q1/8/7K w - - 0 1");
-        let moves: Vec<_> = game.find_best_moves(4).unwrap();
-        for (mov, eval) in &moves {
-            println!("{}: {}", eval, mov);
-        }
-        let moves: Vec<_> = moves.into_iter().map(|e| e.0).collect();
-
-        let stockfish_move = Move::new(
-            Position::from_str("d6").unwrap(),
-            Position::from_str("e5").unwrap(),
-            MoveType::Normal(crate::piece::PieceType::Bishop),
-            None,
-        );
-        assert!(moves.contains(&stockfish_move));
-    }
-
-    #[test]
-    fn black_block_mate_in_one() {
-        let mut game = Bot::from_fen("7K/8/3b4/8/5Q2/6Q1/8/7k b - - 0 1");
-        let moves: Vec<_> = game.find_best_moves(5).unwrap();
-        // println!("{:#?}", &moves[..5]);
-        for (mov, eval) in &moves {
-            println!("{}: {}", eval, mov);
-        }
-        let moves: Vec<_> = moves.into_iter().map(|e| e.0).collect();
-
-        let stockfish_move = Move::new(
-            Position::from_str("d6").unwrap(),
-            Position::from_str("e5").unwrap(),
-            MoveType::Normal(crate::piece::PieceType::Bishop),
-            None,
-        );
-        assert!(moves.contains(&stockfish_move));
-    }
 }

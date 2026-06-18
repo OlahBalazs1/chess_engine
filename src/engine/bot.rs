@@ -1,6 +1,8 @@
+use owo_colors::{OwoColorize, colors::Green};
 use rayon::prelude::*;
 use std::{
     collections::HashMap,
+    sync::{Arc, Mutex},
     time::{Duration, SystemTime},
 };
 
@@ -11,8 +13,9 @@ use crate::{
     board_repr::print_board,
     engine::{
         RepetitionHashmap, add_board_to_repetition,
-        evaluate::{Outcome, evaluate, outcome},
+        evaluate::{Outcome, evaluate, outcome, rate_move},
         searcher::SearchContext,
+        transposition_table::TranspositionTable,
     },
     moving::Move,
 };
@@ -96,19 +99,35 @@ impl Bot {
         }
 
         let (pin_state, check_paths) = self.board.legal_data();
-        let moves = self.board.find_all_moves(pin_state, check_paths, false);
+        let mut moves = self.board.find_all_moves(pin_state, check_paths, false);
+        moves.sort_by_cached_key(|e| -rate_move(e, self.board.side()));
+
+        let total_nodes = Mutex::new(0);
+        let transposition_table = Arc::new(Mutex::new(TranspositionTable::new()));
 
         let mut evals = moves
-            .into_par_iter()
+            .into_iter()
             .map(|e| {
-                let mut ctx = SearchContext::new(self.board.clone(), self.repetitions.clone(), *e);
-                ctx.evaluate(depth, depth)
+                let mut ctx = SearchContext::new(
+                    self.board.clone(),
+                    self.repetitions.clone(),
+                    e,
+                    Arc::clone(&transposition_table),
+                );
+                let eval = ctx.evaluate(depth, depth);
+                *total_nodes.lock().unwrap() += ctx.nodes_searched;
+                eval
             })
             .collect::<Vec<_>>();
         evals.sort_by_key(|(_, eval)| -eval);
         for (mov, eval) in &evals {
             println!("{eval}: {mov}");
         }
+        println!("nodes: {}", total_nodes.lock().unwrap().fg::<Green>());
+        println!(
+            "transpositions: {}",
+            transposition_table.lock().unwrap().len().fg::<Green>()
+        );
         let best_eval = evals.get(0)?.1;
         evals.retain(|e| best_eval == e.1);
 

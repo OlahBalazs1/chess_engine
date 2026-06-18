@@ -4,13 +4,11 @@ use crate::{
     engine::{
         RepetitionHashmap,
         constants::{
-            BISHOP_POSITIONAL, BISHOP_VALUE, KING_POSITIONAL, KING_VALUE,
-            KNIGHT_POSITIONAL, KNIGHT_VALUE, MATERIAL_WEIGHT, PAWN_POSITIONAL,
-            PAWN_VALUE, POSITIONAL_WEIGHT, QUEEN_POSITIONAL, QUEEN_VALUE, ROOK_POSITIONAL,
-            ROOK_VALUE,
+            BISHOP_POSITIONAL, BISHOP_VALUE, KING_POSITIONAL, KING_VALUE, KNIGHT_POSITIONAL,
+            KNIGHT_VALUE, MATERIAL_WEIGHT, PAWN_POSITIONAL, PAWN_VALUE, POSITIONAL_WEIGHT,
+            QUEEN_POSITIONAL, QUEEN_VALUE, ROOK_POSITIONAL, ROOK_VALUE,
         },
-        is_draw_repetition,
-        who2move,
+        is_draw_repetition, who2move,
     },
     moving::{Move, MoveType},
     piece::{Piece, PieceType, Side},
@@ -49,7 +47,8 @@ pub fn evaluate_outcome(
             Outcome::Ongoing => return None,
             Outcome::WhiteWon => i64::MAX - 10000 + (100 * depth) as i64,
             Outcome::BlackWon => i64::MIN + 10000 - (100 * depth) as i64,
-            Outcome::Stalemate => -1000,
+            // deduct points for being boring
+            Outcome::Stalemate => -1000 * who2move(board.side()),
         },
     )
 }
