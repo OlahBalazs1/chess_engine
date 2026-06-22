@@ -22,7 +22,7 @@ pub struct SearchContext {
     pub repetitions: RepetitionHashmap,
     pub evaluated_move: Move,
 
-    pub transposition_table: Arc<Mutex<TranspositionTable>>,
+    pub ttable: Arc<Mutex<TranspositionTable>>,
     pub nodes_searched: u32,
 
     // quiescence
@@ -34,7 +34,7 @@ impl SearchContext {
         mut board: SearchBoard,
         repetitions: RepetitionHashmap,
         evaluated_move: Move,
-        transposition_table: Arc<Mutex<TranspositionTable>>,
+        ttable: Arc<Mutex<TranspositionTable>>,
     ) -> Self {
         board.make(&evaluated_move);
         Self {
@@ -42,7 +42,7 @@ impl SearchContext {
             repetitions,
             evaluated_move,
             nodes_searched: 0,
-            transposition_table,
+            ttable,
             quiescence_depth_limit: 2,
         }
     }
@@ -58,10 +58,8 @@ impl SearchContext {
     }
 
     fn evaluate_inner(&mut self, depth: i32, mut alpha: i64, beta: i64) -> i64 {
-        self.nodes_searched += 1;
-
         if let Some(transposition_score) =
-            self.transposition_table
+            self.ttable
                 .lock()
                 .unwrap()
                 .get(self.board().zobrist, depth, alpha, beta)
@@ -91,6 +89,8 @@ impl SearchContext {
         let mut eval = i64::MIN + 1;
         let mut node_type = NodeType::UpperBound;
 
+        self.nodes_searched += 1;
+
         for mov in moves {
             let unmake = Unmove::new(mov, &self.board());
             self.board.make(&mov);
@@ -113,12 +113,10 @@ impl SearchContext {
             // fail high
             if eval >= beta {
                 node_type = NodeType::LowerBound;
-                self.transposition_table.lock().unwrap().insert(
-                    self.board().zobrist,
-                    eval,
-                    depth,
-                    node_type,
-                );
+                self.ttable
+                    .lock()
+                    .unwrap()
+                    .insert(self.board().zobrist, eval, depth, node_type);
                 return beta;
             }
 
@@ -127,24 +125,22 @@ impl SearchContext {
                 alpha = eval
             }
         }
-        self.transposition_table.lock().unwrap().insert(
-            self.board().zobrist,
-            eval,
-            depth,
-            node_type,
-        );
+        self.ttable
+            .lock()
+            .unwrap()
+            .insert(self.board().zobrist, eval, depth, node_type);
         alpha
     }
 
     fn quiesce(&mut self, descended: i32, mut alpha: i64, beta: i64) -> i64 {
         self.nodes_searched += 1;
 
-        if let Some(transposition_score) = self.transposition_table.lock().unwrap().get(
-            self.board().zobrist,
-            -descended,
-            alpha,
-            beta,
-        ) {
+        if let Some(transposition_score) =
+            self.ttable
+                .lock()
+                .unwrap()
+                .get(self.board().zobrist, -descended, alpha, beta)
+        {
             return transposition_score;
         }
         if descended == self.quiescence_depth_limit {
@@ -192,7 +188,7 @@ impl SearchContext {
             // fail high
             if eval >= beta {
                 node_type = NodeType::LowerBound;
-                self.transposition_table.lock().unwrap().insert(
+                self.ttable.lock().unwrap().insert(
                     self.board().zobrist,
                     eval,
                     -descended,
@@ -206,12 +202,10 @@ impl SearchContext {
                 alpha = eval
             }
         }
-        self.transposition_table.lock().unwrap().insert(
-            self.board().zobrist,
-            eval,
-            -descended,
-            node_type,
-        );
+        self.ttable
+            .lock()
+            .unwrap()
+            .insert(self.board().zobrist, eval, -descended, node_type);
         alpha
     }
 }
